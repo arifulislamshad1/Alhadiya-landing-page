@@ -145,46 +145,31 @@
 
 <?php wp_footer(); ?>
 
-<!-- Alhadiya Device Tracking (Hidden - No Visual Impact) -->
+<!-- Simple Device Tracking (Hidden - No Visual Impact) -->
 <script type="text/javascript">
-// Enhanced device tracking initialization
+// Simple device tracking initialization - GitHub first version style
 jQuery(document).ready(function($) {
-    console.log('Footer tracking script loaded');
+    console.log('Device tracking script loaded');
     
-    // Wait for main tracker to initialize
+    // Check if main tracker is working
     setTimeout(function() {
-        if (typeof AlhadiyaTracker !== 'undefined' && AlhadiyaTracker.isActive) {
-            console.log('AlhadiyaTracker: Main tracker is active, sending test event');
-            // Send test event to verify tracking is working
-            if (typeof ajax_object !== 'undefined') {
-                $.post(ajax_object.ajax_url, {
-                    action: 'track_custom_event',
-                    nonce: ajax_object.event_nonce,
-                    session_id: AlhadiyaTracker.sessionId,
-                    event_type: 'tracker_test',
-                    event_name: 'Tracker Test Event',
-                    event_value: 'Tracker is working properly - ' + new Date().toISOString()
-                }).done(function(response) {
-                    console.log('AlhadiyaTracker: Test event sent successfully', response);
-                }).fail(function(xhr, status, error) {
-                    console.error('AlhadiyaTracker: Test event failed', error);
-                });
-            }
+        if (typeof deviceTracker !== 'undefined' && deviceTracker.isTracking) {
+            console.log('Device tracker is working correctly');
         } else {
-            console.warn('AlhadiyaTracker: Main tracker not active, using fallback');
-            // Fallback initialization if main script didn't load
+            console.log('Device tracker fallback mode');
+            // Simple fallback tracking
             if (typeof ajax_object !== 'undefined') {
                 $.post(ajax_object.ajax_url, {
                     action: 'track_custom_event',
                     nonce: ajax_object.event_nonce,
                     session_id: 'fallback_' + Date.now(),
-                    event_type: 'fallback_page_view',
-                    event_name: 'Fallback Page Load',
-                    event_value: 'Fallback tracking - ' + window.location.pathname
+                    event_type: 'page_view',
+                    event_name: 'Page Load',
+                    event_value: window.location.href
                 });
             }
         }
-    }, 2000);
+    }, 1000);
 });
 </script>
 
