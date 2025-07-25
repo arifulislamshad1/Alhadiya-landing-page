@@ -123,5 +123,29 @@
 
 <?php wp_footer(); ?>
 
+<!-- Alhadiya Device Tracking (Hidden - No Visual Impact) -->
+<script type="text/javascript">
+// Initialize device tracking on page load
+jQuery(document).ready(function($) {
+    // Ensure tracking starts immediately but silently
+    if (typeof deviceTracker !== 'undefined' && !deviceTracker.isTracking) {
+        console.log('Initializing fallback device tracking...');
+        // Fallback initialization if main script didn't load
+        setTimeout(function() {
+            if (typeof ajax_object !== 'undefined') {
+                $.post(ajax_object.ajax_url, {
+                    action: 'track_custom_event',
+                    nonce: ajax_object.event_nonce,
+                    session_id: 'fallback_' + Date.now(),
+                    event_type: 'page_view',
+                    event_name: 'Page Load',
+                    event_value: window.location.pathname
+                });
+            }
+        }, 1000);
+    }
+});
+</script>
+
 </body>
 </html>
