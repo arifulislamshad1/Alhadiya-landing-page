@@ -7,14 +7,14 @@
             <?php the_custom_logo(); ?>
         <?php else: ?>
             <h1 style="color: #dd0055; font-size: 32px; margin: 15px 0; font-family: 'SolaimanLipi', Arial, sans-serif;">
-                <?php bloginfo('name'); ?>
+                <?php echo esc_html(get_bloginfo('name')); ?>
             </h1>
         <?php endif; ?>
     </div>
 
     <!-- Main Heading -->
     <h1 class="main-heading">
-        <?php echo get_theme_mod('main_heading_text', 'অর্গানিক হাতের মেহেদি বানানোর কোর্স মাত্র ৪৯০ টাকা'); ?>
+        <?php echo esc_html(get_theme_mod('main_heading_text', 'অর্গানিক হাতের মেহেদি বানানোর কোর্স মাত্র ৪৯০ টাকা')); ?>
     </h1>
     
     <!-- Video Section -->
@@ -36,51 +36,77 @@
     
     <!-- Course Details - Now Dynamic with Individual Colors -->
     <section class="Corse_container" id="course-section-1" style="--section-color: <?php echo get_theme_mod('section1_color', '#28a745'); ?>">
-        <h3 style="color: var(--section-color);"><?php echo get_theme_mod('section1_title', '🌱 অর্গানিক মেহেদী তৈরির সহজ উপায়'); ?></h3>
+        <h3 style="color: var(--section-color);"><?php echo esc_html(get_theme_mod('section1_title', '🌱 অর্গানিক মেহেদী তৈরির সহজ উপায়')); ?></h3>
         <div class="Corse_dtail">
             <ul class="Corse_dtail_left">
-                <li style="color: <?php echo get_theme_mod('course_item1_color', '#28a745'); ?>;"><?php echo get_theme_mod('course_item1_text', 'অর্গানিক হাতের মেহেদী তৈরি'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item2_color', '#28a745'); ?>;"><?php echo get_theme_mod('course_item2_text', 'ড্রাই রিলিজ কিভাবে করে'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item3_color', '#28a745'); ?>;"><?php get_theme_mod('course_item3_text', 'মেহেদী কোণ তৈরি'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item1_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item1_text', 'অর্গানিক হাতের মেহেদী তৈরি')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item2_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item2_text', 'ড্রাই রিলিজ কিভাবে করে')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item3_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item3_text', 'মেহেদী কোণ তৈরি')); ?>
+                </li>
             </ul>
             <ul class="Corse_dtail_right">
-                <li style="color: <?php echo get_theme_mod('course_item4_color', '#28a745'); ?>;"><?php echo get_theme_mod('course_item4_text', 'প্রফেশনাল রেসিপি শিট'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item5_color', '#28a745'); ?>;"><?php echo get_theme_mod('course_item5_text', 'কি কি তেল ব্যবহার করা যাবে'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item6_color', '#28a745'); ?>;"><?php echo get_theme_mod('course_item6_text', 'কিভাবে মেহেদির রঙ গাড় হবে (সিক্রেট টিপস)'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item4_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item4_text', 'প্রফেশনাল রেসিপি শিট')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item5_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item5_text', 'কি কি তেল ব্যবহার করা যাবে')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item6_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item6_text', 'কিভাবে মেহেদির রঙ গাড় হবে (সিক্রেট টিপস)')); ?>
+                </li>
             </ul>
         </div>
     </section>
     
     <section class="Corse_container" id="course-section-2" style="--section-color: <?php echo get_theme_mod('section2_color', '#dc3545'); ?>">
-        <h3 style="color: var(--section-color);"><?php echo get_theme_mod('section2_title', '🔥 মেহেদী রঙ বাড়ানোর গোপন টিপস'); ?></h3>
+        <h3 style="color: var(--section-color);"><?php echo esc_html(get_theme_mod('section2_title', '🔥 মেহেদী রঙ বাড়ানোর গোপন টিপস')); ?></h3>
         <div class="Corse_dtail">
             <ul class="Corse_dtail_left">
-                <li style="color: <?php echo get_theme_mod('course_item7_color', '#dc3545'); ?>;"><?php echo get_theme_mod('course_item7_text', 'মেহেদির মূল্য নির্ধারণ'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item8_color', '#dc3545'); ?>;"><?php echo get_theme_mod('course_item8_text', 'দীর্ঘদিন সংরক্ষণ কিভাবে করবেন'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item9_color', '#dc3545'); ?>;"><?php echo get_theme_mod('course_item9_text', 'মেহেদী কিভাবে বিক্রি করবেন'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item7_color', '#dc3545')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item7_text', 'মেহেদির মূল্য নির্ধারণ')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item8_color', '#dc3545')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item8_text', 'দীর্ঘদিন সংরক্ষণ কিভাবে করবেন')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item9_color', '#dc3545')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item9_text', 'মেহেদী কিভাবে বিক্রি করবেন')); ?>
+                </li>
             </ul>
             <ul class="Corse_dtail_right">
-                <li style="color: <?php echo get_theme_mod('course_item10_color', '#dc3545'); ?>;"><?php echo get_theme_mod('course_item10_text', 'সার্টিফিকেট প্রদান'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item11_color', '#dc3545'); ?>;"><?php echo get_theme_mod('course_item11_text', 'মেহেদী কোণ প্যাকেজিং'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item10_color', '#dc3545')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item10_text', 'সার্টিফিকেট প্রদান')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item11_color', '#dc3545')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item11_text', 'মেহেদী কোণ প্যাকেজিং')); ?>
+                </li>
             </ul>
         </div>
     </section>
    
     <section class="Corse_container" id="course-section-3" style="--section-color: <?php echo get_theme_mod('section3_color', '#6f42c1'); ?>">
-        <h3 style="color: var(--section-color);"><?php echo get_theme_mod('section3_title', '📦 প্যাকেজিং ও সার্টিফিকেশন'); ?></h3>
+        <h3 style="color: var(--section-color);"><?php echo esc_html(get_theme_mod('section3_title', '📦 প্যাকেজিং ও সার্টিফিকেশন')); ?></h3>
         <div class="Corse_dtail">
             <ul class="Corse_dtail_left">
-                <li style="color: <?php echo get_theme_mod('course_item12_color', '#6f42c1'); ?>;"><?php echo get_theme_mod('course_item12_text', 'প্যাকেজিং ডিজাইন ও লেবেলিং'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item12_color', '#6f42c1')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item12_text', 'প্যাকেজিং ডিজাইন ও লেবেলিং')); ?>
+                </li>
             </ul>
             <ul class="Corse_dtail_right">
-                <li style="color: <?php echo get_theme_mod('course_item13_color', '#6f42c1'); ?>;"><?php echo get_theme_mod('course_item13_text', 'বিক্রির জন্য প্রস্তুতি'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item13_color', '#6f42c1')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item13_text', 'বিক্রির জন্য প্রস্তুতি')); ?>
+                </li>
             </ul>
         </div>
     </section>
     
     <a href="#order" class="btn btn-primary btn-lg" id="order-button-top">এখানে অর্ডার করুন</a><br>
     
-    <h2 class="title mt-3"><?php echo get_theme_mod('review_heading', 'কাস্টমার রিভিউ'); ?></h2>
+    <h2 class="title mt-3"><?php echo esc_html(get_theme_mod('review_heading', 'কাস্টমার রিভিউ')); ?></h2>
 </div>
 
 <!-- Customer Reviews Slider -->
@@ -153,7 +179,7 @@
 <!-- FAQ Section -->
 <div class="faq" id="faq-section">
     <div class="container">
-        <h2 class="title mt-5"><?php echo get_theme_mod('faq_heading', 'প্রশ্ন ও উত্তর'); ?></h2>
+        <h2 class="title mt-5"><?php echo esc_html(get_theme_mod('faq_heading', 'প্রশ্ন ও উত্তর')); ?></h2>
     </div>
 </div>
 
@@ -233,20 +259,20 @@
                     ?>
                     <div class="col-lg-4 col-md-6 col-6">
                         <label class="labels">
-                            <input type="radio" class="products_id" name="product_id" value="<?php echo $product_id; ?>" id="pro_id<?php echo $product_id; ?>" <?php echo $first ? 'checked' : ''; ?> required>
+                            <input type="radio" class="products_id" name="product_id" value="<?php echo esc_attr($product_id); ?>" id="pro_id<?php echo esc_attr($product_id); ?>" <?php echo $first ? 'checked' : ''; ?> required>
                             <div class="products_dets">
                                 <span class="checkmark"><i class="fa-solid fa-check"></i></span>
                                 <div class="img_preview">
                                     <?php echo $product->get_image('medium', array('class' => 'img-fluid product-image')); ?>
                                 </div>
                                 <div class="product_description">
-                                    <h2><?php echo $product->get_name(); ?></h2>
+                                    <h2><?php echo esc_html($product->get_name()); ?></h2>
                                     <div class="price">
                                         <?php if ($sale_price && $regular_price != $sale_price) : ?>
-                                            <p><del>৳ <?php echo $regular_price; ?></del></p>
-                                            <p class="alex-mt"><strong style="color: #dd0055;">৳ <?php echo $sale_price; ?></strong></p>
+                                            <p><del>৳ <?php echo esc_html($regular_price); ?></del></p>
+                                            <p class="alex-mt"><strong style="color: #dd0055;">৳ <?php echo esc_html($sale_price); ?></strong></p>
                                         <?php else : ?>
-                                            <p class="alex-mt"><strong style="color: #dd0055;">৳ <?php echo $price; ?></strong></p>
+                                            <p class="alex-mt"><strong style="color: #dd0055;">৳ <?php echo esc_html($price); ?></strong></p>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -286,11 +312,11 @@
                             <div class="delivery-options-container">
                                 <div class="delivery-option">
                                     <input type="radio" id="dhaka" name="delivery_zone" value="1" checked required>
-                                    <label for="dhaka"><?php echo get_theme_mod('dhaka_delivery_title', 'ঢাকার মধ্যে ডেলিভারি'); ?> - ৳<?php echo get_theme_mod('dhaka_delivery_charge', 0); ?></label>
+                                    <label for="dhaka"><?php echo esc_html(get_theme_mod('dhaka_delivery_title', 'ঢাকার মধ্যে ডেলিভারি')); ?> - ৳<?php echo esc_html(get_theme_mod('dhaka_delivery_charge', 0)); ?></label>
                                 </div>
                                 <div class="delivery-option">
                                     <input type="radio" id="outside_dhaka" name="delivery_zone" value="2" required>
-                                    <label for="outside_dhaka"><?php echo get_theme_mod('outside_dhaka_delivery_title', 'ঢাকার বাইরে ডেলিভারি'); ?> - ৳<?php echo get_theme_mod('outside_dhaka_delivery_charge', 0); ?></label>
+                                    <label for="outside_dhaka"><?php echo esc_html(get_theme_mod('outside_dhaka_delivery_title', 'ঢাকার বাইরে ডেলিভারি')); ?> - ৳<?php echo esc_html(get_theme_mod('outside_dhaka_delivery_charge', 0)); ?></label>
                                 </div>
                             </div>
                         </div>
@@ -314,7 +340,7 @@
                                         <?php 
                                         $bkash_icon = get_theme_mod('bkash_icon');
                                         if ($bkash_icon) {
-                                            echo '<img src="' . wp_get_attachment_url($bkash_icon) . '" alt="bKash" class="payment-icon-img">';
+                                            echo '<img src="' . esc_url(wp_get_attachment_url($bkash_icon)) . '" alt="bKash" class="payment-icon-img">';
                                         } else {
                                             echo '<span class="payment-icon bkash-icon">📱</span>';
                                         }
@@ -330,7 +356,7 @@
                                         <?php 
                                         $nagad_icon = get_theme_mod('nagad_icon');
                                         if ($nagad_icon) {
-                                            echo '<img src="' . wp_get_attachment_url($nagad_icon) . '" alt="Nagad" class="payment-icon-img">';
+                                            echo '<img src="' . esc_url(wp_get_attachment_url($nagad_icon)) . '" alt="Nagad" class="payment-icon-img">';
                                         } else {
                                             echo '<span class="payment-icon nagad-icon">💰</span>';
                                         }
@@ -346,7 +372,7 @@
                                         <?php 
                                         $rocket_icon = get_theme_mod('rocket_icon');
                                         if ($rocket_icon) {
-                                            echo '<img src="' . wp_get_attachment_url($rocket_icon) . '" alt="Rocket" class="payment-icon-img">';
+                                            echo '<img src="' . esc_url(wp_get_attachment_url($rocket_icon)) . '" alt="Rocket" class="payment-icon-img">';
                                         } else {
                                             echo '<span class="payment-icon rocket-icon">🚀</span>';
                                         }
@@ -370,43 +396,43 @@
 
                             <div class="payment-instruction" id="bkash-instruction">
                                 <div class="instruction-header">
-                                    <h4 style="color: <?php echo get_theme_mod('bkash_color', '#e2136e'); ?>;">📱 bKash পেমেন্ট</h4>
+                                    <h4 style="color: <?php echo esc_attr(get_theme_mod('bkash_color', '#e2136e')); ?>;">📱 bKash পেমেন্ট</h4>
                                     <div class="number-copy">
-                                        <span id="bkash-number"><?php echo get_theme_mod('bkash_number', '01975669946'); ?></span>
+                                        <span id="bkash-number"><?php echo esc_html(get_theme_mod('bkash_number', '01975669946')); ?></span>
                                         <button type="button" class="copy-btn" onclick="copyNumber('bkash-number')">
                                             <i class="fas fa-copy"></i> Copy
                                         </button>
                                     </div>
                                 </div>
-                                <p><?php echo get_theme_mod('bkash_instruction', 'আর এই নাম্বারে বিকাশ সেন্ডমানি করে ফর্ম এ লিখুন (Personal)'); ?></p>
+                                <p><?php echo esc_html(get_theme_mod('bkash_instruction', 'আর এই নাম্বারে বিকাশ সেন্ডমানি করে ফর্ম এ লিখুন (Personal)')); ?></p>
                                 <input type="text" name="transaction_number" class="form-control transaction-input" placeholder="ট্রানজেকশন নাম্বার লিখুন">
                             </div>
 
                             <div class="payment-instruction" id="nagad-instruction">
                                 <div class="instruction-header">
-                                    <h4 style="color: <?php echo get_theme_mod('nagad_color', '#f47920'); ?>;">💰 Nagad পেমেন্ট</h4>
+                                    <h4 style="color: <?php echo esc_attr(get_theme_mod('nagad_color', '#f47920')); ?>;">💰 Nagad পেমেন্ট</h4>
                                     <div class="number-copy">
-                                        <span id="nagad-number"><?php echo get_theme_mod('nagad_number', '01737146996'); ?></span>
+                                        <span id="nagad-number"><?php echo esc_html(get_theme_mod('nagad_number', '01737146996')); ?></span>
                                         <button type="button" class="copy-btn" onclick="copyNumber('nagad-number')">
                                             <i class="fas fa-copy"></i> Copy
                                         </button>
                                     </div>
                                 </div>
-                                <p><?php echo get_theme_mod('nagad_instruction', 'আর এই নাম্বারে নগদে সেন্ডমানি করে ফর্ম এ লিখুন (Personal)'); ?></p>
+                                <p><?php echo esc_html(get_theme_mod('nagad_instruction', 'আর এই নাম্বারে নগদে সেন্ডমানি করে ফর্ম এ লিখুন (Personal)')); ?></p>
                                 <input type="text" name="transaction_number" class="form-control transaction-input" placeholder="ট্রানজেকশন নাম্বার লিখুন">
                             </div>
 
                             <div class="payment-instruction" id="rocket-instruction">
                                 <div class="instruction-header">
-                                    <h4 style="color: <?php echo get_theme_mod('rocket_color', '#8b1538'); ?>;">🚀 Rocket পেমেন্ট</h4>
+                                    <h4 style="color: <?php echo esc_attr(get_theme_mod('rocket_color', '#8b1538')); ?>;">🚀 Rocket পেমেন্ট</h4>
                                     <div class="number-copy">
-                                        <span id="rocket-number"><?php echo get_theme_mod('rocket_number', '01737146996'); ?></span>
+                                        <span id="rocket-number"><?php echo esc_html(get_theme_mod('rocket_number', '01737146996')); ?></span>
                                         <button type="button" class="copy-btn" onclick="copyNumber('rocket-number')">
                                             <i class="fas fa-copy"></i> Copy
                                         </button>
                                     </div>
                                 </div>
-                                <p><?php echo get_theme_mod('rocket_instruction', 'আর এই নাম্বারে রকেটে সেন্ডমানি করে ফর্ম এ লিখুন (Personal)'); ?></p>
+                                <p><?php echo esc_html(get_theme_mod('rocket_instruction', 'আর এই নাম্বারে রকেটে সেন্ডমানি করে ফর্ম এ লিখুন (Personal)')); ?></p>
                                 <input type="text" name="transaction_number" class="form-control transaction-input" placeholder="ট্রানজেকশন নাম্বার লিখুন">
                             </div>
                         </div>
@@ -465,11 +491,11 @@
 </div>
 
 <!-- Floating Contact Buttons -->
-<a href="tel:<?php echo get_theme_mod('phone_number', '+8801737146996'); ?>" class="callbtnlaptop">
+<a href="tel:<?php echo esc_attr(get_theme_mod('phone_number', '+8801737146996')); ?>" class="callbtnlaptop">
     <i class="fas fa-phone"></i>
 </a>
 
-<a href="https://wa.me/88<?php echo get_theme_mod('whatsapp_number', '01737146996'); ?>" target="_blank" class="float">
+<a href="https://wa.me/88<?php echo esc_attr(get_theme_mod('whatsapp_number', '01737146996')); ?>" target="_blank" class="float">
     <i class="fab fa-whatsapp"></i>
 </a>
 
@@ -519,10 +545,10 @@
                 <button class="invoice-btn invoice-btn-primary" onclick="closeInvoiceModal()">
                     <i class="fas fa-check"></i> ঠিক আছে
                 </button>
-                <a href="tel:<?php echo get_theme_mod('phone_number', '+8801737146996'); ?>" class="invoice-btn invoice-btn-success">
+                <a href="tel:<?php echo esc_attr(get_theme_mod('phone_number', '+8801737146996')); ?>" class="invoice-btn invoice-btn-success">
                     <i class="fas fa-phone"></i> কল করুন
                 </a>
-                <a href="https://wa.me/88<?php echo get_theme_mod('whatsapp_number', '1737146996'); ?>" target="_blank" class="invoice-btn invoice-btn-secondary">
+                <a href="https://wa.me/88<?php echo esc_attr(get_theme_mod('whatsapp_number', '1737146996')); ?>" target="_blank" class="invoice-btn invoice-btn-secondary">
                     <i class="fab fa-whatsapp"></i> WhatsApp
                 </a>
             </div>

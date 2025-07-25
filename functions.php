@@ -281,16 +281,16 @@ function block_ip_after_order($ip, $time = 5, $unit = 'minutes') {
 function track_enhanced_device_info() {
     global $wpdb;
     
-    $user_agent = $_SERVER['HTTP_USER_AGENT'];
+    $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field($_SERVER['HTTP_USER_AGENT']) : '';
     $ip = get_client_ip();
-    $referrer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
+    $referrer = isset($_SERVER['HTTP_REFERER']) ? sanitize_text_field($_SERVER['HTTP_REFERER']) : '';
     
     // Generate or get session ID
     if (!isset($_COOKIE['device_session'])) {
         $session_id = uniqid('session_', true);
         setcookie('device_session', $session_id, time() + (86400 * 30), '/', COOKIE_DOMAIN, is_ssl(), true); // 30 days, secure, httponly
     } else {
-        $session_id = $_COOKIE['device_session'];
+        $session_id = sanitize_text_field($_COOKIE['device_session']);
     }
     
     // Parse user agent for device info
@@ -542,10 +542,9 @@ function track_custom_event() {
 
     global $wpdb;
     $table_name = $wpdb->prefix . 'device_events';
-
-    $session_id = sanitize_text_field($_POST['session_id']);
-    $event_type = sanitize_text_field($_POST['event_type']);
-    $event_name = sanitize_text_field($_POST['event_name']);
+    $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
+    $event_type = isset($_POST['event_type']) ? sanitize_text_field($_POST['event_type']) : '';
+    $event_name = isset($_POST['event_name']) ? sanitize_text_field($_POST['event_name']) : '';
     $event_value = isset($_POST['event_value']) ? sanitize_text_field($_POST['event_value']) : '';
 
     $wpdb->insert(
@@ -573,9 +572,8 @@ function update_device_screen_size() {
 
     global $wpdb;
     $table_name = $wpdb->prefix . 'device_tracking';
-
-    $session_id = sanitize_text_field($_POST['session_id']);
-    $screen_size = sanitize_text_field($_POST['screen_size']);
+    $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
+    $screen_size = isset($_POST['screen_size']) ? sanitize_text_field($_POST['screen_size']) : '';
 
     $wpdb->update(
         $table_name,
@@ -597,8 +595,7 @@ function update_client_device_details() {
 
     global $wpdb;
     $table_name = $wpdb->prefix . 'device_tracking';
-
-    $session_id = sanitize_text_field($_POST['session_id']);
+    $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
     $data_to_update = array();
 
     if (isset($_POST['language'])) $data_to_update['language'] = sanitize_text_field($_POST['language']);
@@ -610,7 +607,7 @@ function update_client_device_details() {
     if (isset($_POST['cpu_cores'])) $data_to_update['cpu_cores'] = intval($_POST['cpu_cores']);
     if (isset($_POST['touchscreen_detected'])) $data_to_update['touchscreen_detected'] = intval($_POST['touchscreen_detected']);
 
-    if (!empty($data_to_update)) {
+    if (!empty($data_to_update) && !empty($session_id)) {
         $wpdb->update(
             $table_name,
             $data_to_update,
@@ -649,7 +646,7 @@ function handle_woocommerce_order() {
     
     // Prevent duplicate submissions with better key
     $user_ip = get_client_ip();
-    $submission_key = 'order_submission_' . md5($user_ip . $_POST['billing_phone'] . date('Y-m-d-H'));
+    $submission_key = 'order_submission_' . md5($user_ip . (isset($_POST['billing_phone']) ? sanitize_text_field($_POST['billing_phone']) : '') . date('Y-m-d-H'));
     if (get_transient($submission_key)) {
         wp_send_json_error('ডুপ্লিকেট অর্ডার সনাক্ত করা হয়েছে। অনুগ্রহ করে একটু অপেক্ষা করুন।');
         return;
