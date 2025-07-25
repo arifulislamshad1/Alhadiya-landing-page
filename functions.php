@@ -324,15 +324,15 @@ function track_enhanced_device_info() {
     ));
     
     // Initialize variables with default values or existing data
-    $screen_size = property_exists($existing, 'screen_size') ? $existing->screen_size : '';
-    $language = property_exists($existing, 'language') ? $existing->language : '';
-    $timezone = property_exists($existing, 'timezone') ? $existing->timezone : '';
-    $connection_type = property_exists($existing, 'connection_type') ? $existing->connection_type : '';
-    $battery_level = property_exists($existing, 'battery_level') ? $existing->battery_level : null;
-    $battery_charging = property_exists($existing, 'battery_charging') ? $existing->battery_charging : null;
-    $memory_info = property_exists($existing, 'memory_info') ? $existing->memory_info : null;
-    $cpu_cores = property_exists($existing, 'cpu_cores') ? $existing->cpu_cores : null;
-    $touchscreen_detected = property_exists($existing, 'touchscreen_detected') ? $existing->touchscreen_detected : null;
+    $screen_size = ($existing && property_exists($existing, 'screen_size')) ? $existing->screen_size : '';
+    $language = ($existing && property_exists($existing, 'language')) ? $existing->language : '';
+    $timezone = ($existing && property_exists($existing, 'timezone')) ? $existing->timezone : '';
+    $connection_type = ($existing && property_exists($existing, 'connection_type')) ? $existing->connection_type : '';
+    $battery_level = ($existing && property_exists($existing, 'battery_level')) ? $existing->battery_level : null;
+    $battery_charging = ($existing && property_exists($existing, 'battery_charging')) ? $existing->battery_charging : null;
+    $memory_info = ($existing && property_exists($existing, 'memory_info')) ? $existing->memory_info : null;
+    $cpu_cores = ($existing && property_exists($existing, 'cpu_cores')) ? $existing->cpu_cores : null;
+    $touchscreen_detected = ($existing && property_exists($existing, 'touchscreen_detected')) ? $existing->touchscreen_detected : null;
 
     if ($existing) {
         // Update existing record
