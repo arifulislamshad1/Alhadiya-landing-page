@@ -4,9 +4,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Define DB version for schema updates
-define('ALHADIYA_DEVICE_DB_VERSION', '1.1'); // Increment this version when schema changes
-
 // Theme setup
 function alhadiya_theme_setup() {
     // Add theme support
@@ -167,14 +164,14 @@ function create_device_tracking_table() {
         customer_phone varchar(50),
         customer_address text,
         screen_size varchar(50),
-        language varchar(50),
-        timezone varchar(100),
-        connection_type varchar(50),
-        battery_level decimal(5,2),
-        battery_charging tinyint(1),
-        memory_info decimal(5,2),
-        cpu_cores int(11),
-        touchscreen_detected tinyint(1),
+        language varchar(50), -- New column
+        timezone varchar(100), -- New column
+        connection_type varchar(50), -- New column
+        battery_level decimal(5,2), -- New column
+        battery_charging tinyint(1), -- New column
+        memory_info decimal(5,2), -- New column
+        cpu_cores int(11), -- New column
+        touchscreen_detected tinyint(1), -- New column
         first_visit datetime DEFAULT CURRENT_TIMESTAMP,
         last_visit datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
@@ -185,6 +182,7 @@ function create_device_tracking_table() {
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql);
 }
+add_action('after_switch_theme', 'create_device_tracking_table');
 
 // New table for specific device events
 function create_device_events_table() {
@@ -206,18 +204,7 @@ function create_device_events_table() {
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql);
 }
-
-// Check and update DB schema on init
-function alhadiya_check_db_version() {
-    $installed_version = get_option('alhadiya_device_db_version');
-
-    if ($installed_version != ALHADIYA_DEVICE_DB_VERSION) {
-        create_device_tracking_table();
-        create_device_events_table();
-        update_option('alhadiya_device_db_version', ALHADIYA_DEVICE_DB_VERSION);
-    }
-}
-add_action('init', 'alhadiya_check_db_version');
+add_action('after_switch_theme', 'create_device_events_table');
 
 
 // Fixed IP Blocking System
@@ -323,16 +310,16 @@ function track_enhanced_device_info() {
         $session_id
     ));
     
-    // Initialize variables with default values or existing data
-    $screen_size = property_exists($existing, 'screen_size') ? $existing->screen_size : '';
-    $language = property_exists($existing, 'language') ? $existing->language : '';
-    $timezone = property_exists($existing, 'timezone') ? $existing->timezone : '';
-    $connection_type = property_exists($existing, 'connection_type') ? $existing->connection_type : '';
-    $battery_level = property_exists($existing, 'battery_level') ? $existing->battery_level : null;
-    $battery_charging = property_exists($existing, 'battery_charging') ? $existing->battery_charging : null;
-    $memory_info = property_exists($existing, 'memory_info') ? $existing->memory_info : null;
-    $cpu_cores = property_exists($existing, 'cpu_cores') ? $existing->cpu_cores : null;
-    $touchscreen_detected = property_exists($existing, 'touchscreen_detected') ? $existing->touchscreen_detected : null;
+    // Screen size and new device info will be updated via AJAX from client-side
+    $screen_size = $existing ? $existing->screen_size : '';
+    $language = $existing ? $existing->language : '';
+    $timezone = $existing ? $existing->timezone : '';
+    $connection_type = $existing ? $existing->connection_type : '';
+    $battery_level = $existing ? $existing->battery_level : null;
+    $battery_charging = $existing ? $existing->battery_charging : null;
+    $memory_info = $existing ? $existing->memory_info : null;
+    $cpu_cores = $existing ? $existing->cpu_cores : null;
+    $touchscreen_detected = $existing ? $existing->touchscreen_detected : null;
 
     if ($existing) {
         // Update existing record
@@ -390,7 +377,7 @@ function track_enhanced_device_info() {
 }
 
 function parse_user_agent($user_agent) {
-    $device_type = 'Unknown';
+    $device_type = 'Desktop';
     $device_model = 'Unknown';
     $browser = 'Unknown';
     $os = 'Unknown';
@@ -414,37 +401,24 @@ function parse_user_agent($user_agent) {
                 $os = 'Android ' . $matches[1];
             }
         }
-    } else {
-        $device_type = 'Desktop';
     }
     
-    // Detect browser and version
-    if (preg_match('/(Chrome|Firefox|Safari|Edge|OPR)\/([0-9.]+)/i', $user_agent, $matches)) {
-        $browser = $matches[1];
-        $browser_version = $matches[2];
-        if ($browser === 'OPR') {
-            $browser = 'Opera';
-        }
-        $browser .= ' ' . $browser_version;
-    } elseif (preg_match('/MSIE ([0-9.]+)/i', $user_agent, $matches)) {
-        $browser = 'Internet Explorer ' . $matches[1];
+    // Detect browser
+    if (preg_match('/Chrome/i', $user_agent)) {
+        $browser = 'Chrome';
+    } elseif (preg_match('/Firefox/i', $user_agent)) {
+        $browser = 'Firefox';
+    } elseif (preg_match('/Safari/i', $user_agent)) {
+        $browser = 'Safari';
+    } elseif (preg_match('/Edge/i', $user_agent)) {
+        $browser = 'Edge';
     }
     
-    // Detect OS for desktop if not already set by mobile detection
-    if ($os === 'Unknown') {
+    // Detect OS for desktop
+    if ($device_type == 'Desktop') {
         if (preg_match('/Windows NT ([0-9.]+)/i', $user_agent, $matches)) {
-            $os_version = '';
-            switch ($matches[1]) {
-                case '10.0': $os_version = '10'; break;
-                case '6.3': $os_version = '8.1'; break;
-                case '6.2': $os_version = '8'; break;
-                case '6.1': $os_version = '7'; break;
-                case '6.0': $os_version = 'Vista'; break;
-                case '5.1': $os_version = 'XP'; break;
-                case '5.0': $os_version = '2000'; break;
-            }
-            $os = 'Windows ' . $os_version;
-        } elseif (preg_match('/Mac OS X ([0-9_.]+)/i', $user_agent, $matches)) {
+            $os = 'Windows ' . $matches[1];
+        } elseif (preg_match('/Mac OS X ([0-9_]+)/i', $user_agent, $matches)) {
             $os = 'macOS ' . str_replace('_', '.', $matches[1]);
         } elseif (preg_match('/Linux/i', $user_agent)) {
             $os = 'Linux';
@@ -515,23 +489,13 @@ function track_time_spent() {
             var timeSpent = Math.floor((Date.now() - startTime) / 1000);
             
             if (sessionId && timeSpent > 10) { // Only update if more than 10 seconds
-                // Use navigator.sendBeacon for more reliable unload tracking
-                if (navigator.sendBeacon) {
-                    const formData = new FormData();
-                    formData.append('action', 'update_time_spent');
-                    formData.append('session_id', sessionId);
-                    formData.append('time_spent', timeSpent);
-                    formData.append('nonce', '<?php echo wp_create_nonce('time_tracking'); ?>');
-                    navigator.sendBeacon('<?php echo admin_url('admin-ajax.php'); ?>', formData);
-                } else {
-                    // Fallback for older browsers
-                    jQuery.post('<?php echo admin_url('admin-ajax.php'); ?>', {
-                        action: 'update_time_spent',
-                        session_id: sessionId,
-                        time_spent: timeSpent,
-                        nonce: '<?php echo wp_create_nonce('time_tracking'); ?>'
-                    });
-                }
+                fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'action=update_time_spent&session_id=' + sessionId + '&time_spent=' + timeSpent + '&nonce=<?php echo wp_create_nonce('time_tracking'); ?>'
+                });
             }
         }
         
@@ -1646,14 +1610,14 @@ function enhanced_device_tracking_page() {
                     </td>
                     <td>
                         <small>
-                            <strong>Screen:</strong> <?php echo property_exists($data, 'screen_size') && $data->screen_size ? esc_html($data->screen_size) : 'N/A'; ?><br>
-                            <strong>Lang:</strong> <?php echo property_exists($data, 'language') && $data->language ? esc_html($data->language) : 'N/A'; ?><br>
-                            <strong>TZ:</strong> <?php echo property_exists($data, 'timezone') && $data->timezone ? esc_html($data->timezone) : 'N/A'; ?><br>
-                            <strong>Conn:</strong> <?php echo property_exists($data, 'connection_type') && $data->connection_type ? esc_html($data->connection_type) : 'N/A'; ?><br>
-                            <strong>Batt:</strong> <?php echo property_exists($data, 'battery_level') && $data->battery_level !== null ? (esc_html($data->battery_level * 100) . '% ' . (property_exists($data, 'battery_charging') && $data->battery_charging ? '(Charging)' : '(Discharging)')) : 'N/A'; ?><br>
-                            <strong>Mem:</strong> <?php echo property_exists($data, 'memory_info') && $data->memory_info !== null ? (esc_html($data->memory_info) . 'GB') : 'N/A'; ?><br>
-                            <strong>CPU:</strong> <?php echo property_exists($data, 'cpu_cores') && $data->cpu_cores !== null ? esc_html($data->cpu_cores) : 'N/A'; ?><br>
-                            <strong>Touch:</strong> <?php echo property_exists($data, 'touchscreen_detected') && $data->touchscreen_detected !== null ? ($data->touchscreen_detected ? 'Yes' : 'No') : 'N/A'; ?>
+                            <strong>Screen:</strong> <?php echo $data->screen_size ? esc_html($data->screen_size) : 'N/A'; ?><br>
+                            <strong>Lang:</strong> <?php echo $data->language ? esc_html($data->language) : 'N/A'; ?><br>
+                            <strong>TZ:</strong> <?php echo $data->timezone ? esc_html($data->timezone) : 'N/A'; ?><br>
+                            <strong>Conn:</strong> <?php echo $data->connection_type ? esc_html($data->connection_type) : 'N/A'; ?><br>
+                            <strong>Batt:</strong> <?php echo $data->battery_level !== null ? (esc_html($data->battery_level * 100) . '% ' . ($data->battery_charging ? '(Charging)' : '(Discharging)')) : 'N/A'; ?><br>
+                            <strong>Mem:</strong> <?php echo $data->memory_info !== null ? (esc_html($data->memory_info) . 'GB') : 'N/A'; ?><br>
+                            <strong>CPU:</strong> <?php echo $data->cpu_cores !== null ? esc_html($data->cpu_cores) : 'N/A'; ?><br>
+                            <strong>Touch:</strong> <?php echo $data->touchscreen_detected !== null ? ($data->touchscreen_detected ? 'Yes' : 'No') : 'N/A'; ?>
                         </small>
                     </td>
                     <td>
@@ -1788,15 +1752,15 @@ function device_session_details_page() {
                     <p><strong>Customer Phone:</strong> <?php echo esc_html($session_data->customer_phone); ?></p>
                     <p><strong>Customer Address:</strong> <?php echo esc_html($session_data->customer_address); ?></p>
                 <?php endif; ?>
-                <p><strong>Screen Size:</strong> <?php echo property_exists($session_data, 'screen_size') && $session_data->screen_size ? esc_html($session_data->screen_size) : 'N/A'; ?></p>
-                <p><strong>Language:</strong> <?php echo property_exists($session_data, 'language') && $session_data->language ? esc_html($session_data->language) : 'N/A'; ?></p>
-                <p><strong>Timezone:</strong> <?php echo property_exists($session_data, 'timezone') && $session_data->timezone ? esc_html($session_data->timezone) : 'N/A'; ?></p>
-                <p><strong>Connection Type:</strong> <?php echo property_exists($session_data, 'connection_type') && $session_data->connection_type ? esc_html($session_data->connection_type) : 'N/A'; ?></p>
-                <p><strong>Battery Level:</strong> <?php echo property_exists($session_data, 'battery_level') && $session_data->battery_level !== null ? (esc_html($session_data->battery_level * 100) . '%') : 'N/A'; ?></p>
-                <p><strong>Battery Charging:</strong> <?php echo property_exists($session_data, 'battery_charging') && $session_data->battery_charging !== null ? ($session_data->battery_charging ? 'Yes' : 'No') : 'N/A'; ?></p>
-                <p><strong>Memory Info:</strong> <?php echo property_exists($session_data, 'memory_info') && $session_data->memory_info !== null ? (esc_html($session_data->memory_info) . 'GB') : 'N/A'; ?></p>
-                <p><strong>CPU Cores:</strong> <?php echo property_exists($session_data, 'cpu_cores') && $session_data->cpu_cores !== null ? esc_html($session_data->cpu_cores) : 'N/A'; ?></p>
-                <p><strong>Touchscreen Detected:</strong> <?php echo property_exists($session_data, 'touchscreen_detected') && $session_data->touchscreen_detected !== null ? ($session_data->touchscreen_detected ? 'Yes' : 'No') : 'N/A'; ?></p>
+                <p><strong>Screen Size:</strong> <?php echo $session_data->screen_size ? esc_html($session_data->screen_size) : 'N/A'; ?></p>
+                <p><strong>Language:</strong> <?php echo $session_data->language ? esc_html($session_data->language) : 'N/A'; ?></p>
+                <p><strong>Timezone:</strong> <?php echo $session_data->timezone ? esc_html($session_data->timezone) : 'N/A'; ?></p>
+                <p><strong>Connection Type:</strong> <?php echo $session_data->connection_type ? esc_html($session_data->connection_type) : 'N/A'; ?></p>
+                <p><strong>Battery Level:</strong> <?php echo $session_data->battery_level !== null ? (esc_html($session_data->battery_level * 100) . '%') : 'N/A'; ?></p>
+                <p><strong>Battery Charging:</strong> <?php echo $session_data->battery_charging !== null ? ($session_data->battery_charging ? 'Yes' : 'No') : 'N/A'; ?></p>
+                <p><strong>Memory Info:</strong> <?php echo $session_data->memory_info !== null ? (esc_html($session_data->memory_info) . 'GB') : 'N/A'; ?></p>
+                <p><strong>CPU Cores:</strong> <?php echo $session_data->cpu_cores !== null ? esc_html($session_data->cpu_cores) : 'N/A'; ?></p>
+                <p><strong>Touchscreen Detected:</strong> <?php echo $session_data->touchscreen_detected !== null ? ($session_data->touchscreen_detected ? 'Yes' : 'No') : 'N/A'; ?></p>
                 <p><strong>First Visit:</strong> <?php echo date('M j, Y H:i:s', strtotime($session_data->first_visit)); ?></p>
                 <p><strong>Last Visit:</strong> <?php echo date('M j, Y H:i:s', strtotime($session_data->last_visit)); ?></p>
             </div>

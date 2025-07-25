@@ -633,26 +633,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const sessionId = getCookie('device_session');
         if (!sessionId) return;
 
-        // Use navigator.sendBeacon for more reliable data transmission on unload/beforeunload
-        if (navigator.sendBeacon && eventType.includes('time_spent') || eventType.includes('unload')) {
-            const formData = new FormData();
-            formData.append('action', 'track_custom_event');
-            formData.append('session_id', sessionId);
-            formData.append('event_type', eventType);
-            formData.append('event_name', eventName);
-            formData.append('event_value', eventValue);
-            formData.append('nonce', ajax_object.event_nonce);
-            navigator.sendBeacon(ajax_object.ajax_url, formData);
-        } else {
-            jQuery.post(ajax_object.ajax_url, {
-                action: 'track_custom_event',
-                session_id: sessionId,
-                event_type: eventType,
-                event_name: eventName,
-                event_value: eventValue,
-                nonce: ajax_object.event_nonce
-            });
-        }
+        jQuery.post(ajax_object.ajax_url, {
+            action: 'track_custom_event',
+            session_id: sessionId,
+            event_type: eventType,
+            event_name: eventName,
+            event_value: eventValue,
+            nonce: ajax_object.event_nonce // Use the new nonce
+        });
     }
 
     // NEW: Function to collect and send client-side device info
@@ -1107,7 +1095,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 action: 'update_device_screen_size',
                 session_id: sessionId,
                 screen_size: screenSize,
-                nonce: ajax_object.screen_size_nonce // Use the correct nonce
+                nonce: ajax_object.screen_size_nonce // Use the new nonce
             }, function(response) {
                 if (response.success) {
                     sessionStorage.setItem('screen_size_sent_' + sessionId, 'true');
@@ -1193,7 +1181,7 @@ window.addEventListener('beforeunload', function() {
                 formData.append('event_type', 'section_time_spent');
                 formData.append('event_name', `Time Spent on Section: ${sectionId} (Unload)`);
                 formData.append('event_value', `${timeSpent.toFixed(2)}s`);
-                formData.append('nonce', ajax_object.event_nonce);
+                formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
                 navigator.sendBeacon(ajax_object.ajax_url, formData);
             } else {
                 // Fallback for older browsers (less reliable on unload)
@@ -1213,7 +1201,7 @@ window.addEventListener('beforeunload', function() {
                 formData.append('event_type', 'button_time_spent');
                 formData.append('event_name', `Time Spent on ${buttonName} (Unload)`);
                 formData.append('event_value', `${timeSpent.toFixed(2)}s`);
-                formData.append('nonce', ajax_object.event_nonce);
+                formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
                 navigator.sendBeacon(ajax_object.ajax_url, formData);
             } else {
                 // Fallback for older browsers
