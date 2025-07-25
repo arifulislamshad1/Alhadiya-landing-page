@@ -1777,6 +1777,15 @@ function add_enhanced_device_tracking_menu() {
 
     add_submenu_page(
         'enhanced-device-tracking',
+        'Live User Tracking',
+        'Live Tracking',
+        'manage_options',
+        'live-user-tracking',
+        'alhadiya_live_tracking_page'
+    );
+    
+    add_submenu_page(
+        'enhanced-device-tracking',
         'Session Details',
         'Session Details',
         'manage_options',
@@ -1789,118 +1798,318 @@ add_action('admin_menu', 'add_enhanced_device_tracking_menu');
 function enhanced_device_tracking_page() {
     global $wpdb;
     $tracking_table = $wpdb->prefix . 'device_tracking';
+    $events_table = $wpdb->prefix . 'device_events';
     
-    // Get all tracking data
-    $tracking_data = $wpdb->get_results("SELECT * FROM $tracking_table ORDER BY last_visit DESC LIMIT 100");
+    // Get summary statistics
+    $total_visitors = $wpdb->get_var("SELECT COUNT(DISTINCT session_id) FROM $tracking_table");
+    $active_sessions = $wpdb->get_var("SELECT COUNT(*) FROM $tracking_table WHERE last_visit >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)");
+    $total_events = $wpdb->get_var("SELECT COUNT(*) FROM $events_table WHERE DATE(timestamp) = CURDATE()");
+    $avg_time = $wpdb->get_var("SELECT AVG(time_spent) FROM $tracking_table WHERE time_spent > 0");
+    $avg_scroll = $wpdb->get_var("SELECT AVG(scroll_depth_max) FROM $tracking_table WHERE scroll_depth_max > 0");
+    
+    // Get recent tracking data with enhanced info
+    $tracking_data = $wpdb->get_results("
+        SELECT *, 
+               CASE WHEN last_visit >= DATE_SUB(NOW(), INTERVAL 5 MINUTE) THEN 1 ELSE 0 END as is_online
+        FROM $tracking_table 
+        ORDER BY last_visit DESC 
+        LIMIT 50
+    ");
     
     ?>
     <div class="wrap">
-        <h1>Enhanced Device Tracking</h1>
+        <h1>🚀 Alhadiya Device Tracking Dashboard</h1>
+        
+        <!-- Summary Cards -->
+        <div class="alhadiya-admin-dashboard">
+            <div class="alhadiya-summary-cards">
+                <div class="alhadiya-summary-card">
+                    <h3><?php echo number_format($total_visitors); ?></h3>
+                    <p>Total Visitors</p>
+                </div>
+                <div class="alhadiya-summary-card">
+                    <h3>
+                        <span class="alhadiya-live-indicator"></span>
+                        <?php echo number_format($active_sessions); ?>
+                    </h3>
+                    <p>Live Users (5 min)</p>
+                </div>
+                <div class="alhadiya-summary-card">
+                    <h3><?php echo number_format($total_events); ?></h3>
+                    <p>Today's Events</p>
+                </div>
+                <div class="alhadiya-summary-card">
+                    <h3><?php echo round($avg_time, 1); ?>s</h3>
+                    <p>Avg. Time Spent</p>
+                </div>
+                <div class="alhadiya-summary-card">
+                    <h3><?php echo round($avg_scroll, 1); ?>%</h3>
+                    <p>Avg. Scroll Depth</p>
+                </div>
+            </div>
+            
+            <!-- Live Users Alert -->
+            <?php if ($active_sessions > 0): ?>
+            <div class="alhadiya-live-users">
+                <span class="alhadiya-live-indicator"></span>
+                <strong><?php echo $active_sessions; ?> users are currently active on your site!</strong>
+                <a href="<?php echo admin_url('admin.php?page=live-user-tracking'); ?>" class="button button-primary" style="margin-left: 15px;">View Live Tracking</a>
+            </div>
+            <?php endif; ?>
+        </div>
+        
         <div class="tablenav top">
             <div class="alignleft actions">
-                <button type="button" class="button" onclick="location.reload()">Refresh</button>
+                <button type="button" class="button" onclick="location.reload()">🔄 Refresh</button>
+                <a href="<?php echo admin_url('admin.php?page=live-user-tracking'); ?>" class="button">📺 Live Tracking</a>
             </div>
         </div>
         <table class="wp-list-table widefat fixed striped">
             <thead>
                 <tr>
-                    <th>Session ID</th>
-                    <th>IP Address</th>
-                    <th>Device Info</th>
-                    <th>Location & ISP</th>
-                    <th>Referrer</th>
-                    <th>Facebook ID</th>
-                    <th>Visit Count</th>
-                    <th>Time Spent</th>
-                    <th>Pages Viewed</th>
-                    <th>Purchased</th>
+                    <th>Status</th>
+                    <th>Session Info</th>
+                    <th>Device & Browser</th>
+                    <th>Enhanced Tracking</th>
+                    <th>User Activity</th>
+                    <th>Location & Network</th>
                     <th>Customer Info</th>
-                    <th>Client Device Details</th> <!-- New column header -->
-                    <th>Events Log</th>
-                    <th>First Visit</th>
-                    <th>Last Visit</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($tracking_data as $data): ?>
-                <tr>
-                    <td><small><?php echo substr($data->session_id, 0, 15); ?>...</small></td>
-                    <td><?php echo $data->ip_address; ?></td>
+                <tr <?php echo $data->is_online ? 'style="background-color: #f0fff0; border-left: 4px solid #4caf50;"' : ''; ?>>
+                    <!-- Status -->
+                    <td>
+                        <?php if ($data->is_online): ?>
+                            <span class="alhadiya-live-indicator"></span>
+                            <small style="color: #4caf50;"><strong>LIVE</strong></small>
+                        <?php else: ?>
+                            <span style="color: #999;">●</span>
+                            <small style="color: #999;">Offline</small>
+                        <?php endif; ?>
+                        <br>
+                        <?php if ($data->has_purchased): ?>
+                            <span style="color: green; font-size: 12px;">💰 Customer</span>
+                        <?php endif; ?>
+                    </td>
+                    
+                    <!-- Session Info -->
                     <td>
                         <small>
-                            <strong>Type:</strong> <?php echo $data->device_type; ?><br>
-                            <strong>Model:</strong> <?php echo $data->device_model; ?><br>
-                            <strong>Browser:</strong> <?php echo $data->browser; ?><br>
-                            <strong>OS:</strong> <?php echo $data->os; ?>
+                            <strong>ID:</strong> <?php echo substr($data->session_id, 8, 8); ?>...<br>
+                            <strong>IP:</strong> <?php echo $data->ip_address; ?><br>
+                            <strong>Visits:</strong> <?php echo $data->visit_count; ?><br>
+                            <strong>Pages:</strong> <?php echo $data->pages_viewed; ?><br>
+                            <strong>Time:</strong> 
+                            <?php 
+                            $minutes = floor($data->time_spent / 60);
+                            $seconds = $data->time_spent % 60;
+                            echo $minutes . 'm ' . $seconds . 's';
+                            ?>
                         </small>
                     </td>
+                    
+                    <!-- Device & Browser -->
                     <td>
                         <small>
-                            <strong>Location:</strong> <?php echo $data->location; ?><br>
-                            <strong>ISP:</strong> <?php echo $data->isp; ?>
+                            <strong><?php echo $data->device_type; ?></strong><br>
+                            <?php echo $data->browser; ?> 
+                            <?php echo property_exists($data, 'browser_version') ? $data->browser_version : ''; ?><br>
+                            <?php echo $data->os; ?><br>
+                            <?php echo property_exists($data, 'screen_size') && $data->screen_size ? $data->screen_size : 'N/A'; ?>
+                            <?php echo property_exists($data, 'touchscreen_detected') && $data->touchscreen_detected ? ' 👆' : ''; ?>
                         </small>
                     </td>
+                    
+                    <!-- Enhanced Tracking -->
                     <td>
                         <small>
+                            <strong>Lang:</strong> <?php echo property_exists($data, 'language') && $data->language ? substr($data->language, 0, 5) : 'N/A'; ?><br>
+                            <strong>TZ:</strong> <?php echo property_exists($data, 'timezone') && $data->timezone ? explode('/', $data->timezone)[1] ?? $data->timezone : 'N/A'; ?><br>
+                            <strong>Conn:</strong> <?php echo property_exists($data, 'connection_type') && $data->connection_type ? $data->connection_type : 'N/A'; ?><br>
+                            <strong>Batt:</strong> 
+                            <?php 
+                            if (property_exists($data, 'battery_level') && $data->battery_level !== null) {
+                                echo round($data->battery_level * 100) . '%';
+                                if (property_exists($data, 'battery_charging') && $data->battery_charging) {
+                                    echo ' ⚡';
+                                } else {
+                                    echo ' 🔋';
+                                }
+                            } else {
+                                echo 'N/A';
+                            }
+                            ?><br>
+                            <strong>RAM:</strong> <?php echo property_exists($data, 'memory_info') && $data->memory_info ? round($data->memory_info) . 'MB' : 'N/A'; ?><br>
+                            <strong>CPU:</strong> <?php echo property_exists($data, 'cpu_cores') && $data->cpu_cores ? $data->cpu_cores . ' cores' : 'N/A'; ?>
+                        </small>
+                    </td>
+                    
+                    <!-- User Activity -->
+                    <td>
+                        <small>
+                            <strong>Scroll:</strong> <?php echo property_exists($data, 'scroll_depth_max') && $data->scroll_depth_max ? round($data->scroll_depth_max) . '%' : '0%'; ?><br>
+                            <strong>Clicks:</strong> <?php echo property_exists($data, 'click_count') && $data->click_count ? $data->click_count : '0'; ?><br>
+                            <strong>Keys:</strong> <?php echo property_exists($data, 'keypress_count') && $data->keypress_count ? $data->keypress_count : '0'; ?><br>
+                            <strong>Mouse:</strong> <?php echo property_exists($data, 'mouse_movements') && $data->mouse_movements ? $data->mouse_movements : '0'; ?>
+                        </small>
+                    </td>
+                    
+                    <!-- Location & Network -->
+                    <td>
+                        <small>
+                            <strong>Location:</strong> <?php echo $data->location ?: 'Unknown'; ?><br>
+                            <strong>ISP:</strong> <?php echo $data->isp ?: 'Unknown'; ?><br>
+                            <strong>Referrer:</strong> 
                             <?php 
                             if ($data->referrer) {
                                 $domain = parse_url($data->referrer, PHP_URL_HOST);
-                                echo $domain ? $domain : 'Direct';
+                                echo $domain ? substr($domain, 0, 20) : 'Direct';
                             } else {
                                 echo 'Direct';
                             }
                             ?>
                         </small>
                     </td>
-                    <td><?php echo $data->facebook_id ? $data->facebook_id : 'N/A'; ?></td>
-                    <td><span class="badge"><?php echo $data->visit_count; ?></span></td>
+                    
+                    <!-- Customer Info -->
                     <td>
-                        <?php 
-                        $minutes = floor($data->time_spent / 60);
-                        $seconds = $data->time_spent % 60;
-                        echo $minutes . 'm ' . $seconds . 's';
-                        ?>
-                    </td>
-                    <td><span class="badge"><?php echo $data->pages_viewed; ?></span></td>
-                    <td>
-                        <?php if ($data->has_purchased): ?>
-                            <span style="color: green;">✓ Yes</span>
-                        <?php else: ?>
-                            <span style="color: red;">✗ No</span>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <?php if ($data->has_purchased): ?>
+                        <?php if ($data->has_purchased && $data->customer_name): ?>
                             <small>
-                                <strong>Name:</strong> <?php echo esc_html($data->customer_name); ?><br>
-                                <strong>Phone:</strong> <?php echo esc_html($data->customer_phone); ?><br>
-                                <strong>Address:</strong> <?php echo esc_html($data->customer_address); ?>
+                                <strong><?php echo esc_html($data->customer_name); ?></strong><br>
+                                📞 <?php echo esc_html($data->customer_phone); ?><br>
+                                📍 <?php echo esc_html(substr($data->customer_address, 0, 30)) . (strlen($data->customer_address) > 30 ? '...' : ''); ?>
                             </small>
                         <?php else: ?>
-                            N/A
+                            <span style="color: #999;">Not a customer</span>
                         <?php endif; ?>
                     </td>
-                    <td>
-                        <small>
-                            <strong>Screen:</strong> <?php echo property_exists($data, 'screen_size') && $data->screen_size ? esc_html($data->screen_size) : 'N/A'; ?><br>
-                            <strong>Lang:</strong> <?php echo property_exists($data, 'language') && $data->language ? esc_html($data->language) : 'N/A'; ?><br>
-                            <strong>TZ:</strong> <?php echo property_exists($data, 'timezone') && $data->timezone ? esc_html($data->timezone) : 'N/A'; ?><br>
-                            <strong>Conn:</strong> <?php echo property_exists($data, 'connection_type') && $data->connection_type ? esc_html($data->connection_type) : 'N/A'; ?><br>
-                            <strong>Batt:</strong> <?php echo property_exists($data, 'battery_level') && $data->battery_level !== null ? (esc_html($data->battery_level * 100) . '% ' . (property_exists($data, 'battery_charging') && $data->battery_charging ? '(Charging)' : '(Discharging)')) : 'N/A'; ?><br>
-                            <strong>Mem:</strong> <?php echo property_exists($data, 'memory_info') && $data->memory_info !== null ? (esc_html($data->memory_info) . 'GB') : 'N/A'; ?><br>
-                            <strong>CPU:</strong> <?php echo property_exists($data, 'cpu_cores') && $data->cpu_cores !== null ? esc_html($data->cpu_cores) : 'N/A'; ?><br>
-                            <strong>Touch:</strong> <?php echo property_exists($data, 'touchscreen_detected') && $data->touchscreen_detected !== null ? ($data->touchscreen_detected ? 'Yes' : 'No') : 'N/A'; ?>
-                        </small>
-                    </td>
-                    <td>
-                        <a href="<?php echo esc_url(admin_url('admin.php?page=device-session-details&session_id=' . $data->session_id)); ?>" class="events-log-link">View Events</a>
-                    </td>
-                    <td><small><?php echo date('M j, Y H:i', strtotime($data->first_visit)); ?></small></td>
-                    <td><small><?php echo date('M j, Y H:i', strtotime($data->last_visit)); ?></small></td>
+                                         <!-- Actions -->
+                     <td>
+                         <a href="<?php echo esc_url(admin_url('admin.php?page=device-session-details&session_id=' . $data->session_id)); ?>" class="button button-small">📊 Events</a>
+                         <br><br>
+                         <small>
+                             <strong>First:</strong> <?php echo date('M j, H:i', strtotime($data->first_visit)); ?><br>
+                             <strong>Last:</strong> <?php echo date('M j, H:i', strtotime($data->last_visit)); ?>
+                         </small>
+                     </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
+    </div>
+    <?php
+}
+
+// Live User Tracking Page
+function alhadiya_live_tracking_page() {
+    global $wpdb;
+    $tracking_table = $wpdb->prefix . 'device_tracking';
+    $events_table = $wpdb->prefix . 'device_events';
+    
+    // Get live users (active within last 5 minutes)
+    $live_users = $wpdb->get_results("
+        SELECT *, 
+               TIMESTAMPDIFF(SECOND, last_visit, NOW()) as seconds_ago
+        FROM $tracking_table 
+        WHERE last_visit >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+        ORDER BY last_visit DESC
+    ");
+    
+    // Get recent events from live users
+    $recent_events = $wpdb->get_results("
+        SELECT e.*, dt.ip_address, dt.device_type, dt.browser, dt.location
+        FROM $events_table e
+        JOIN $tracking_table dt ON e.session_id = dt.session_id
+        WHERE e.timestamp >= DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+        ORDER BY e.timestamp DESC
+        LIMIT 100
+    ");
+    
+    ?>
+    <div class="wrap">
+        <h1>📺 Live User Tracking</h1>
+        
+        <!-- Live Status -->
+        <div class="alhadiya-admin-dashboard">
+            <div class="alhadiya-live-users">
+                <span class="alhadiya-live-indicator"></span>
+                <strong><?php echo count($live_users); ?> users are currently active on your site</strong>
+                <button class="button" onclick="location.reload()" style="margin-left: 15px;">🔄 Refresh</button>
+            </div>
+            
+            <!-- Live Users Grid -->
+            <?php if (!empty($live_users)): ?>
+            <h2>🟢 Currently Active Users</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 20px 0;">
+                <?php foreach ($live_users as $user): ?>
+                <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #4caf50;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong>🔴 LIVE USER</strong>
+                        <small style="color: #4caf50;"><?php echo $user->seconds_ago; ?>s ago</small>
+                    </div>
+                    
+                    <div style="font-size: 12px; line-height: 1.4;">
+                        <strong>Device:</strong> <?php echo $user->device_type; ?> | <?php echo $user->browser; ?><br>
+                        <strong>Location:</strong> <?php echo $user->location ?: 'Unknown'; ?><br>
+                        <strong>Screen:</strong> <?php echo property_exists($user, 'screen_size') && $user->screen_size ? $user->screen_size : 'N/A'; ?><br>
+                        <strong>Activity:</strong> 
+                        Scroll: <?php echo property_exists($user, 'scroll_depth_max') ? round($user->scroll_depth_max) . '%' : '0%'; ?>, 
+                        Clicks: <?php echo property_exists($user, 'click_count') ? $user->click_count : '0'; ?><br>
+                        <strong>Time on site:</strong> <?php echo floor($user->time_spent / 60); ?>m <?php echo $user->time_spent % 60; ?>s<br>
+                        
+                        <?php if (property_exists($user, 'battery_level') && $user->battery_level): ?>
+                        <strong>Battery:</strong> <?php echo round($user->battery_level * 100); ?>% 
+                        <?php echo property_exists($user, 'battery_charging') && $user->battery_charging ? '⚡' : '🔋'; ?><br>
+                        <?php endif; ?>
+                        
+                        <?php if (property_exists($user, 'connection_type') && $user->connection_type): ?>
+                        <strong>Connection:</strong> <?php echo $user->connection_type; ?><br>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div style="margin-top: 10px;">
+                        <a href="<?php echo admin_url('admin.php?page=device-session-details&session_id=' . $user->session_id); ?>" class="button button-small">View Details</a>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php else: ?>
+            <div style="text-align: center; padding: 40px; color: #666;">
+                <h3>😴 No users currently active</h3>
+                <p>Users will appear here when they visit your site</p>
+            </div>
+            <?php endif; ?>
+            
+            <!-- Recent Activity Feed -->
+            <h2>⚡ Live Activity Feed (Last 30 minutes)</h2>
+            <div style="background: white; border-radius: 8px; padding: 20px; max-height: 400px; overflow-y: auto;">
+                <?php if (!empty($recent_events)): ?>
+                    <?php foreach ($recent_events as $event): ?>
+                    <div style="padding: 8px; border-bottom: 1px solid #eee; font-size: 12px;">
+                        <span style="color: #666;"><?php echo date('H:i:s', strtotime($event->timestamp)); ?></span> - 
+                        <strong><?php echo $event->device_type; ?></strong> from 
+                        <span style="color: #0073aa;"><?php echo $event->location ?: 'Unknown'; ?></span>: 
+                        <span style="color: #d63384;"><?php echo $event->event_name; ?></span>
+                        <?php if ($event->event_value): ?>
+                        <small style="color: #6c757d;"> (<?php echo substr($event->event_value, 0, 50); ?>)</small>
+                        <?php endif; ?>
+                    </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <p style="text-align: center; color: #666;">No recent activity</p>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <!-- Auto-refresh script -->
+        <script>
+        setTimeout(function() {
+            location.reload();
+        }, 30000); // Refresh every 30 seconds
+        </script>
     </div>
     <?php
 }
@@ -2041,46 +2250,73 @@ function device_session_details_page() {
         <?php endif; ?>
 
         <div class="event-log-table-container">
-            <h2>Event Log</h2>
-            <form method="GET" class="event-filter-form" id="event-filter-form">
-                <input type="hidden" name="page" value="device-session-details">
-                <input type="hidden" name="session_id" value="<?php echo esc_attr($session_id); ?>">
-                
-                <div class="filter-group">
-                    <label for="filter_start_date">Start Date:</label>
-                    <input type="date" name="filter_start_date" id="filter_start_date" value="<?php echo esc_attr($filter_start_date); ?>">
-                    <label for="filter_start_time">Time:</label>
-                    <input type="time" name="filter_start_time" id="filter_start_time" value="<?php echo esc_attr($filter_start_time); ?>">
-                </div>
+            <h2>📊 Event Log & Session Timeline</h2>
+            
+            <!-- Enhanced Filter Panel -->
+            <div class="alhadiya-filter-panel">
+                <h3>🔍 Filter Events</h3>
+                <form method="GET" class="event-filter-form" id="event-filter-form">
+                    <input type="hidden" name="page" value="device-session-details">
+                    <input type="hidden" name="session_id" value="<?php echo esc_attr($session_id); ?>">
+                    
+                    <!-- Date & Time Filters -->
+                    <div class="alhadiya-filter-row">
+                        <div class="alhadiya-filter-group">
+                            <label for="filter_start_date">📅 Start Date:</label>
+                            <input type="date" name="filter_start_date" id="filter_start_date" value="<?php echo esc_attr($filter_start_date); ?>">
+                        </div>
+                        <div class="alhadiya-filter-group">
+                            <label for="filter_start_time">🕐 Start Time:</label>
+                            <input type="time" name="filter_start_time" id="filter_start_time" value="<?php echo esc_attr($filter_start_time); ?>">
+                        </div>
+                        <div class="alhadiya-filter-group">
+                            <label for="filter_end_date">📅 End Date:</label>
+                            <input type="date" name="filter_end_date" id="filter_end_date" value="<?php echo esc_attr($filter_end_date); ?>">
+                        </div>
+                        <div class="alhadiya-filter-group">
+                            <label for="filter_end_time">🕐 End Time:</label>
+                            <input type="time" name="filter_end_time" id="filter_end_time" value="<?php echo esc_attr($filter_end_time); ?>">
+                        </div>
+                    </div>
 
-                <div class="filter-group">
-                    <label for="filter_end_date">End Date:</label>
-                    <input type="date" name="filter_end_date" id="filter_end_date" value="<?php echo esc_attr($filter_end_date); ?>">
-                    <label for="filter_end_time">Time:</label>
-                    <input type="time" name="filter_end_time" id="filter_end_time" value="<?php echo esc_attr($filter_end_time); ?>">
-                </div>
+                    <!-- Preset Buttons -->
+                    <div class="alhadiya-filter-row">
+                        <div class="alhadiya-filter-group">
+                            <label>⚡ Quick Filters:</label>
+                            <div class="alhadiya-preset-buttons">
+                                <button type="button" class="alhadiya-preset-btn" data-preset="today">Today</button>
+                                <button type="button" class="alhadiya-preset-btn" data-preset="yesterday">Yesterday</button>
+                                <button type="button" class="alhadiya-preset-btn" data-preset="last7days">Last 7 Days</button>
+                                <button type="button" class="alhadiya-preset-btn" data-preset="last15days">Last 15 Days</button>
+                                <button type="button" class="alhadiya-preset-btn" data-preset="last30days">Last 30 Days</button>
+                            </div>
+                        </div>
+                    </div>
 
-                <div class="filter-group preset-buttons">
-                    <button type="button" class="button" data-preset="today">Today</button>
-                    <button type="button" class="button" data-preset="yesterday">Yesterday</button>
-                    <button type="button" class="button" data-preset="last7days">Last 7 Days</button>
-                    <button type="button" class="button" data-preset="last15days">Last 15 Days</button>
-                    <button type="button" class="button" data-preset="last30days">Last 30 Days</button>
-                </div>
-
-                <div class="filter-group event-type-filters">
-                    <label>Event Types:</label>
-                    <?php foreach ($all_event_types as $type_slug => $type_label): ?>
-                        <label class="event-type-checkbox">
-                            <input type="checkbox" name="filter_event_types[]" value="<?php echo esc_attr($type_slug); ?>" <?php checked(in_array($type_slug, $filter_event_types), true); ?>>
-                            <?php echo esc_html($type_label); ?>
-                        </label>
-                    <?php endforeach; ?>
-                </div>
-                
-                <input type="submit" class="button button-primary" value="Filter Events">
-                <a href="<?php echo esc_url(admin_url('admin.php?page=device-session-details&session_id=' . $session_id)); ?>" class="button">Reset Filter</a>
-            </form>
+                    <!-- Event Type Filters -->
+                    <div class="alhadiya-filter-row">
+                        <div class="alhadiya-filter-group" style="flex: 1;">
+                            <label>🎯 Event Types:</label>
+                            <div class="alhadiya-event-types">
+                                <?php foreach ($all_event_types as $type_slug => $type_label): ?>
+                                    <label class="alhadiya-event-type-checkbox">
+                                        <input type="checkbox" name="filter_event_types[]" value="<?php echo esc_attr($type_slug); ?>" <?php checked(in_array($type_slug, $filter_event_types), true); ?>>
+                                        <?php echo esc_html($type_label); ?>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter Actions -->
+                    <div class="alhadiya-filter-row">
+                        <div class="alhadiya-filter-group">
+                            <input type="submit" class="button button-primary" value="🔍 Apply Filters">
+                            <a href="<?php echo esc_url(admin_url('admin.php?page=device-session-details&session_id=' . $session_id)); ?>" class="button">🔄 Reset All</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
 
             <?php if (!empty($session_events)): ?>
                 <table class="event-log-table wp-list-table widefat fixed striped">
@@ -2137,7 +2373,7 @@ function device_session_details_page() {
         const startTimeInput = document.getElementById('filter_start_time');
         const endDateInput = document.getElementById('filter_end_date');
         const endTimeInput = document.getElementById('filter_end_time');
-        const presetButtons = document.querySelectorAll('.preset-buttons .button');
+        const presetButtons = document.querySelectorAll('.alhadiya-preset-btn');
 
         presetButtons.forEach(button => {
             button.addEventListener('click', function() {

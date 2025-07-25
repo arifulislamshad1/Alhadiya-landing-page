@@ -119,6 +119,28 @@
         </div>
     </footer><!-- #colophon -->
     <?php endif; // End if enable_footer ?>
+
+    <!-- Floating WhatsApp/Phone Buttons - No Layout Impact -->
+    <div class="alhadiya-floating-buttons">
+        <?php 
+        $whatsapp_number = get_theme_mod('phone_number', '+8801737146996');
+        $whatsapp_message = urlencode('আসসালামু আলাইকুম! আমি অর্গানিক মেহেদী কোর্স সম্পর্কে জানতে চাই।');
+        ?>
+        <a href="https://wa.me/<?php echo str_replace(array('+', ' ', '-'), '', $whatsapp_number); ?>?text=<?php echo $whatsapp_message; ?>" 
+           class="alhadiya-floating-btn alhadiya-whatsapp-btn" 
+           target="_blank" 
+           data-track-event="whatsapp_click"
+           title="WhatsApp এ যোগাযোগ করুন">
+            <i class="fab fa-whatsapp"></i>
+        </a>
+        <a href="tel:<?php echo str_replace(array(' ', '-'), '', $whatsapp_number); ?>" 
+           class="alhadiya-floating-btn alhadiya-phone-btn" 
+           data-track-event="phone_click"
+           title="ফোন করুন">
+            <i class="fas fa-phone"></i>
+        </a>
+    </div>
+
 </div><!-- #page -->
 
 <?php wp_footer(); ?>
