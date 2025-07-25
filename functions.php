@@ -4,8 +4,23 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Error handling: Prevent fatal errors from breaking the site
+function alhadiya_error_handler($errno, $errstr, $errfile, $errline) {
+    // Only handle our theme's errors
+    if (strpos($errfile, get_template_directory()) !== false) {
+        error_log("Alhadiya Theme Error: [$errno] $errstr in $errfile on line $errline");
+        // Return true to prevent PHP's built-in error handler from running
+        return true;
+    }
+    // Return false to allow normal error handling for other files
+    return false;
+}
+
+// Set custom error handler for theme
+set_error_handler('alhadiya_error_handler', E_ERROR | E_WARNING | E_PARSE);
+
 // Define DB version for schema updates
-define('ALHADIYA_DEVICE_DB_VERSION', '1.1'); // Increment this version when schema changes
+define('ALHADIYA_DEVICE_DB_VERSION', '2.0'); // Increment this version when schema changes
 
 // Theme setup
 function alhadiya_theme_setup() {
@@ -36,6 +51,9 @@ function alhadiya_scripts() {
     wp_enqueue_script('swiper', 'https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js', array(), '11.0.0', true);
     wp_enqueue_script('jquery');
     
+    // Enqueue comprehensive device tracking script
+    wp_enqueue_script('device-tracker', get_template_directory_uri() . '/device-tracker.js', array('jquery'), wp_get_theme()->get('Version'), true);
+    
     // Localize script for AJAX
     wp_localize_script('jquery', 'ajax_object', array(
         'ajax_url' => admin_url('admin-ajax.php'),
@@ -46,7 +64,9 @@ function alhadiya_scripts() {
         'phone_number' => get_theme_mod('phone_number', '+8801737146996'),
         'device_info_nonce' => wp_create_nonce('alhadiya_device_info_nonce'), // New nonce for device info
         'event_nonce' => wp_create_nonce('alhadiya_event_nonce'), // New nonce for custom events
-        'screen_size_nonce' => wp_create_nonce('alhadiya_screen_size_nonce') // New nonce for screen size
+        'screen_size_nonce' => wp_create_nonce('alhadiya_screen_size_nonce'), // New nonce for screen size
+        'track_nonce' => wp_create_nonce('alhadiya_track_nonce'), // Nonce for high-performance tracking
+        'tracking_endpoint' => home_url('/?alhadiya_track=1') // High-performance tracking endpoint
     ));
 }
 add_action('wp_enqueue_scripts', 'alhadiya_scripts');
@@ -142,6 +162,12 @@ add_action('after_switch_theme', 'alhadiya_insert_default_faqs');
 function create_device_tracking_table() {
     global $wpdb;
     
+    // Error handling: Check if database connection is available
+    if (!$wpdb || $wpdb->last_error) {
+        error_log('Alhadiya Theme: Database connection error - ' . $wpdb->last_error);
+        return false;
+    }
+    
     $table_name = $wpdb->prefix . 'device_tracking';
     
     $charset_collate = $wpdb->get_charset_collate();
@@ -154,6 +180,7 @@ function create_device_tracking_table() {
         device_type varchar(50),
         device_model varchar(100),
         browser varchar(50),
+        browser_version varchar(50),
         os varchar(50),
         location varchar(255),
         isp varchar(100),
@@ -167,28 +194,55 @@ function create_device_tracking_table() {
         customer_phone varchar(50),
         customer_address text,
         screen_size varchar(50),
+        screen_resolution varchar(50),
+        viewport_size varchar(50),
         language varchar(50),
         timezone varchar(100),
         connection_type varchar(50),
+        connection_speed varchar(20),
         battery_level decimal(5,2),
         battery_charging tinyint(1),
-        memory_info decimal(5,2),
+        memory_info decimal(8,2),
+        storage_info decimal(8,2),
         cpu_cores int(11),
         touchscreen_detected tinyint(1),
+        device_orientation varchar(20),
+        scroll_depth_max decimal(5,2) DEFAULT 0,
+        click_count int(11) DEFAULT 0,
+        keypress_count int(11) DEFAULT 0,
+        mouse_movements int(11) DEFAULT 0,
         first_visit datetime DEFAULT CURRENT_TIMESTAMP,
         last_visit datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         UNIQUE KEY session_id (session_id),
-        KEY ip_address (ip_address)
+        KEY ip_address (ip_address),
+        KEY browser (browser),
+        KEY device_type (device_type),
+        KEY last_visit (last_visit)
     ) $charset_collate;";
     
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-    dbDelta($sql);
+    $result = dbDelta($sql);
+    
+    // Log database creation result
+    if ($wpdb->last_error) {
+        error_log('Alhadiya Theme: Error creating device_tracking table - ' . $wpdb->last_error);
+        return false;
+    }
+    
+    return true;
 }
 
 // New table for specific device events
 function create_device_events_table() {
     global $wpdb;
+    
+    // Error handling: Check if database connection is available
+    if (!$wpdb || $wpdb->last_error) {
+        error_log('Alhadiya Theme: Database connection error - ' . $wpdb->last_error);
+        return false;
+    }
+    
     $table_name = $wpdb->prefix . 'device_events';
     $charset_collate = $wpdb->get_charset_collate();
 
@@ -200,11 +254,21 @@ function create_device_events_table() {
         event_value text,
         timestamp datetime DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
-        KEY session_id (session_id)
+        KEY session_id (session_id),
+        KEY event_type (event_type),
+        KEY timestamp (timestamp)
     ) $charset_collate;";
 
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-    dbDelta($sql);
+    $result = dbDelta($sql);
+    
+    // Log database creation result
+    if ($wpdb->last_error) {
+        error_log('Alhadiya Theme: Error creating device_events table - ' . $wpdb->last_error);
+        return false;
+    }
+    
+    return true;
 }
 
 // Check and update DB schema on init
@@ -218,6 +282,69 @@ function alhadiya_check_db_version() {
     }
 }
 add_action('init', 'alhadiya_check_db_version');
+
+// Performance optimization: Database cleanup for large traffic
+function alhadiya_device_tracking_cleanup() {
+    global $wpdb;
+    
+    // Clean up old events (keep only last 90 days)
+    $events_table = $wpdb->prefix . 'device_events';
+    $wpdb->query($wpdb->prepare(
+        "DELETE FROM $events_table WHERE timestamp < DATE_SUB(NOW(), INTERVAL 90 DAY)"
+    ));
+    
+    // Clean up old tracking data (keep only last 180 days)
+    $tracking_table = $wpdb->prefix . 'device_tracking';
+    $wpdb->query($wpdb->prepare(
+        "DELETE FROM $tracking_table WHERE last_visit < DATE_SUB(NOW(), INTERVAL 180 DAY)"
+    ));
+    
+    // Optimize tables
+    $wpdb->query("OPTIMIZE TABLE $events_table");
+    $wpdb->query("OPTIMIZE TABLE $tracking_table");
+}
+
+// Schedule cleanup to run weekly
+if (!wp_next_scheduled('alhadiya_device_cleanup')) {
+    wp_schedule_event(time(), 'weekly', 'alhadiya_device_cleanup');
+}
+add_action('alhadiya_device_cleanup', 'alhadiya_device_tracking_cleanup');
+
+// Performance optimization: Batch process events to reduce database load
+function alhadiya_batch_process_events() {
+    // This could be expanded for high-traffic sites to batch process events
+    // For now, we use immediate processing with optimized queries
+    do_action('alhadiya_process_batch_events');
+}
+
+// Security: Rate limiting for tracking requests
+function alhadiya_rate_limit_tracking() {
+    $ip = get_client_ip();
+    $transient_key = 'alhadiya_tracking_limit_' . md5($ip);
+    $requests = get_transient($transient_key);
+    
+    if ($requests === false) {
+        set_transient($transient_key, 1, 60); // 1 minute window
+        return true;
+    } elseif ($requests < 30) { // Max 30 requests per minute
+        set_transient($transient_key, $requests + 1, 60);
+        return true;
+    }
+    
+    return false; // Rate limit exceeded
+}
+
+// Security: Validate session ID format
+function alhadiya_validate_session_id($session_id) {
+    // Session ID should match the format: session_timestamp_randomstring
+    return preg_match('/^session_[0-9]+_[a-z0-9]+$/', $session_id);
+}
+
+// Deactivation cleanup
+function alhadiya_device_tracking_deactivate() {
+    wp_clear_scheduled_hook('alhadiya_device_cleanup');
+}
+register_deactivation_hook(__FILE__, 'alhadiya_device_tracking_deactivate');
 
 
 // Fixed IP Blocking System
@@ -294,6 +421,12 @@ function block_ip_after_order($ip, $time = 5, $unit = 'minutes') {
 function track_enhanced_device_info() {
     global $wpdb;
     
+    // Error handling: Check if database is available
+    if (!$wpdb) {
+        error_log('Alhadiya Theme: Database not available for tracking');
+        return array('error' => 'Database not available');
+    }
+    
     $user_agent = $_SERVER['HTTP_USER_AGENT'];
     $ip = get_client_ip();
     $referrer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
@@ -301,7 +434,8 @@ function track_enhanced_device_info() {
     // Generate or get session ID
     if (!isset($_COOKIE['device_session'])) {
         $session_id = uniqid('session_', true);
-        setcookie('device_session', $session_id, time() + (86400 * 30), '/', COOKIE_DOMAIN, is_ssl(), true); // 30 days, secure, httponly
+        $cookie_domain = defined('COOKIE_DOMAIN') && !empty(COOKIE_DOMAIN) ? COOKIE_DOMAIN : '';
+        setcookie('device_session', $session_id, time() + (86400 * 30), '/', $cookie_domain, is_ssl(), true); // 30 days, secure, httponly
     } else {
         $session_id = $_COOKIE['device_session'];
     }
@@ -323,16 +457,16 @@ function track_enhanced_device_info() {
         $session_id
     ));
     
-    // Initialize variables with default values or existing data
-    $screen_size = property_exists($existing, 'screen_size') ? $existing->screen_size : '';
-    $language = property_exists($existing, 'language') ? $existing->language : '';
-    $timezone = property_exists($existing, 'timezone') ? $existing->timezone : '';
-    $connection_type = property_exists($existing, 'connection_type') ? $existing->connection_type : '';
-    $battery_level = property_exists($existing, 'battery_level') ? $existing->battery_level : null;
-    $battery_charging = property_exists($existing, 'battery_charging') ? $existing->battery_charging : null;
-    $memory_info = property_exists($existing, 'memory_info') ? $existing->memory_info : null;
-    $cpu_cores = property_exists($existing, 'cpu_cores') ? $existing->cpu_cores : null;
-    $touchscreen_detected = property_exists($existing, 'touchscreen_detected') ? $existing->touchscreen_detected : null;
+    // Initialize variables with default values or existing data (NULL-SAFE)
+    $screen_size = ($existing && property_exists($existing, 'screen_size')) ? $existing->screen_size : '';
+    $language = ($existing && property_exists($existing, 'language')) ? $existing->language : '';
+    $timezone = ($existing && property_exists($existing, 'timezone')) ? $existing->timezone : '';
+    $connection_type = ($existing && property_exists($existing, 'connection_type')) ? $existing->connection_type : '';
+    $battery_level = ($existing && property_exists($existing, 'battery_level')) ? $existing->battery_level : null;
+    $battery_charging = ($existing && property_exists($existing, 'battery_charging')) ? $existing->battery_charging : null;
+    $memory_info = ($existing && property_exists($existing, 'memory_info')) ? $existing->memory_info : null;
+    $cpu_cores = ($existing && property_exists($existing, 'cpu_cores')) ? $existing->cpu_cores : null;
+    $touchscreen_detected = ($existing && property_exists($existing, 'touchscreen_detected')) ? $existing->touchscreen_detected : null;
 
     if ($existing) {
         // Update existing record
@@ -346,7 +480,7 @@ function track_enhanced_device_info() {
             array('session_id' => $session_id)
         );
     } else {
-        // Insert new record
+        // Insert new record with all enhanced fields
         $wpdb->insert(
             $table_name,
             array(
@@ -356,20 +490,28 @@ function track_enhanced_device_info() {
                 'device_type' => $device_info['device_type'],
                 'device_model' => $device_info['device_model'],
                 'browser' => $device_info['browser'],
+                'browser_version' => '', // Will be updated by JavaScript
                 'os' => $device_info['os'],
                 'location' => $location_data['location'],
                 'isp' => $location_data['isp'],
                 'referrer' => $referrer,
                 'facebook_id' => $facebook_id, // Will be empty string
                 'screen_size' => $screen_size, // Initial empty, updated by AJAX
+                'screen_resolution' => '', // Will be updated by JavaScript
+                'viewport_size' => '', // Will be updated by JavaScript
                 'language' => $language,
                 'timezone' => $timezone,
                 'connection_type' => $connection_type,
+                'connection_speed' => '', // Will be updated by JavaScript
                 'battery_level' => $battery_level,
                 'battery_charging' => $battery_charging,
                 'memory_info' => $memory_info,
+                'storage_info' => null, // Will be updated by JavaScript
                 'cpu_cores' => $cpu_cores,
                 'touchscreen_detected' => $touchscreen_detected,
+                'device_orientation' => '', // Will be updated by JavaScript
+                'visit_count' => 1,
+                'pages_viewed' => 1,
                 'first_visit' => current_time('mysql'),
                 'last_visit' => current_time('mysql')
             )
@@ -571,6 +713,12 @@ add_action('wp_ajax_nopriv_update_time_spent', 'update_time_spent');
 
 // AJAX handler for tracking custom events
 function track_custom_event() {
+    // Rate limiting check
+    if (!alhadiya_rate_limit_tracking()) {
+        wp_send_json_error('Rate limit exceeded');
+        return;
+    }
+    
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'alhadiya_event_nonce')) {
         wp_send_json_error('Security check failed');
         return;
@@ -624,8 +772,14 @@ function update_device_screen_size() {
 add_action('wp_ajax_update_device_screen_size', 'update_device_screen_size');
 add_action('wp_ajax_nopriv_update_device_screen_size', 'update_device_screen_size');
 
-// NEW AJAX handler for updating client-side device details
+// ENHANCED AJAX handler for updating comprehensive client-side device details
 function update_client_device_details() {
+    // Rate limiting check
+    if (!alhadiya_rate_limit_tracking()) {
+        wp_send_json_error('Rate limit exceeded');
+        return;
+    }
+    
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'alhadiya_device_info_nonce')) {
         wp_send_json_error('Security check failed');
         return;
@@ -635,30 +789,112 @@ function update_client_device_details() {
     $table_name = $wpdb->prefix . 'device_tracking';
 
     $session_id = sanitize_text_field($_POST['session_id']);
+    if (empty($session_id) || !alhadiya_validate_session_id($session_id)) {
+        wp_send_json_error('Invalid session ID');
+        return;
+    }
+
     $data_to_update = array();
 
+    // Basic device information
     if (isset($_POST['language'])) $data_to_update['language'] = sanitize_text_field($_POST['language']);
     if (isset($_POST['timezone'])) $data_to_update['timezone'] = sanitize_text_field($_POST['timezone']);
+    
+    // Browser information
+    if (isset($_POST['browser'])) $data_to_update['browser'] = sanitize_text_field($_POST['browser']);
+    if (isset($_POST['browser_version'])) $data_to_update['browser_version'] = sanitize_text_field($_POST['browser_version']);
+    
+    // Screen and display information
+    if (isset($_POST['screen_size'])) $data_to_update['screen_size'] = sanitize_text_field($_POST['screen_size']);
+    if (isset($_POST['screen_resolution'])) $data_to_update['screen_resolution'] = sanitize_text_field($_POST['screen_resolution']);
+    if (isset($_POST['viewport_size'])) $data_to_update['viewport_size'] = sanitize_text_field($_POST['viewport_size']);
+    if (isset($_POST['device_orientation'])) $data_to_update['device_orientation'] = sanitize_text_field($_POST['device_orientation']);
+    
+    // Connection information
     if (isset($_POST['connection_type'])) $data_to_update['connection_type'] = sanitize_text_field($_POST['connection_type']);
+    if (isset($_POST['connection_speed'])) $data_to_update['connection_speed'] = sanitize_text_field($_POST['connection_speed']);
+    
+    // Battery information
     if (isset($_POST['battery_level'])) $data_to_update['battery_level'] = floatval($_POST['battery_level']);
     if (isset($_POST['battery_charging'])) $data_to_update['battery_charging'] = intval($_POST['battery_charging']);
+    
+    // Performance information
     if (isset($_POST['memory_info'])) $data_to_update['memory_info'] = floatval($_POST['memory_info']);
+    if (isset($_POST['storage_info'])) $data_to_update['storage_info'] = floatval($_POST['storage_info']);
+    
+    // Hardware information
     if (isset($_POST['cpu_cores'])) $data_to_update['cpu_cores'] = intval($_POST['cpu_cores']);
     if (isset($_POST['touchscreen_detected'])) $data_to_update['touchscreen_detected'] = intval($_POST['touchscreen_detected']);
+    
+    // User interaction data
+    if (isset($_POST['scroll_depth_max'])) $data_to_update['scroll_depth_max'] = floatval($_POST['scroll_depth_max']);
+    if (isset($_POST['click_count'])) $data_to_update['click_count'] = intval($_POST['click_count']);
+    if (isset($_POST['keypress_count'])) $data_to_update['keypress_count'] = intval($_POST['keypress_count']);
+    if (isset($_POST['mouse_movements'])) $data_to_update['mouse_movements'] = intval($_POST['mouse_movements']);
 
     if (!empty($data_to_update)) {
-        $wpdb->update(
+        $result = $wpdb->update(
             $table_name,
             $data_to_update,
             array('session_id' => $session_id)
         );
-        wp_send_json_success('Client device details updated successfully');
+        
+        if ($result === false) {
+            wp_send_json_error('Database update failed: ' . $wpdb->last_error);
+        } else {
+            wp_send_json_success('Client device details updated successfully');
+        }
     } else {
         wp_send_json_error('No data to update');
     }
 }
 add_action('wp_ajax_update_client_device_details', 'update_client_device_details');
 add_action('wp_ajax_nopriv_update_client_device_details', 'update_client_device_details');
+
+// High-performance tracking endpoint for large traffic
+function alhadiya_tracking_endpoint() {
+    // Check if this is our tracking endpoint
+    if (isset($_GET['alhadiya_track']) && $_GET['alhadiya_track'] === '1') {
+        // Validate nonce for security
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'alhadiya_track_nonce')) {
+            wp_die('Security check failed', 'Unauthorized', array('response' => 403));
+        }
+        
+        // Process tracking data quickly
+        track_enhanced_device_info();
+        
+        // Return 1x1 transparent pixel
+        header('Content-Type: image/gif');
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        
+        // 1x1 transparent GIF
+        $pixel = base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+        echo $pixel;
+        exit;
+    }
+}
+add_action('init', 'alhadiya_tracking_endpoint', 1);
+
+// Performance: Optimize AJAX requests with compression
+function alhadiya_optimize_ajax_response() {
+    if (wp_doing_ajax()) {
+        // Enable gzip compression for AJAX responses
+        if (!headers_sent() && function_exists('gzencode')) {
+            ob_start('ob_gzhandler');
+        }
+        
+        // Set cache headers for non-sensitive AJAX responses
+        if (isset($_POST['action']) && in_array($_POST['action'], array('track_custom_event', 'update_client_device_details'))) {
+            header('Cache-Control: no-cache, no-store, must-revalidate');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+        }
+    }
+}
+add_action('wp_ajax_nopriv_track_custom_event', 'alhadiya_optimize_ajax_response', 1);
+add_action('wp_ajax_track_custom_event', 'alhadiya_optimize_ajax_response', 1);
 
 
 // Fixed WooCommerce order submission with fixed IP blocking
