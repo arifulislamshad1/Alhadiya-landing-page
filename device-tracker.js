@@ -15,11 +15,13 @@
         sectionTracking: {},
         userInteractions: {
             scrollDepth: 0,
+            scrollY: 0,
             clickCount: 0,
             keypressCount: 0,
             mouseMovements: 0,
             lastKeyPressed: '',
-            clickPositions: []
+            clickPositions: [],
+            capsLockState: 'unknown'
         },
         currentSection: null,
         sectionTimes: {},
@@ -29,14 +31,15 @@
         lastActivity: Date.now()
     };
 
-    // Section mapping for tracking
+    // Section mapping for tracking - Updated per requirements
     const SECTIONS = {
+        'course-section-1': 'অর্গানিক মেহেদী তৈরির সহজ উপায়',
+        'course-section-2': 'মেহেদী রঙ বাড়ানোর গোপন টিপস',
+        'course-section-3': 'প্যাকেজিং ও সার্টিফিকেশন',
+        'review-section': 'Review Section',
+        'video-section': 'Video Section',
+        'order-section': 'Order Form Section',
         'hero-section': 'Hero/Banner Area',
-        'course-section-1': 'Course Introduction',
-        'course-section-2': 'Course Benefits',
-        'review-section': 'Customer Reviews',
-        'faq-section': 'FAQ Section',
-        'order-section': 'Order Form',
         'footer': 'Footer Area'
     };
 
@@ -102,7 +105,7 @@
     }
 
     /**
-     * Collect comprehensive device information
+     * Collect comprehensive device information including caps lock and geolocation
      */
     function collectDeviceInformation() {
         // Basic device info
@@ -125,6 +128,9 @@
         
         // Device type detection
         const deviceType = detectDeviceType(userAgent, screenWidth);
+        
+        // Caps Lock detection
+        detectCapsLockState();
         
         // Touch capability
         const touchSupport = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -161,10 +167,13 @@
         // Send device info to server
         sendDeviceInfo();
         
-        // Send initial detailed device info as event
-        const deviceDetailString = `IP Info: ${AlhadiyaTracker.deviceInfo.language} | Browser: ${AlhadiyaTracker.deviceInfo.browser} ${AlhadiyaTracker.deviceInfo.browser_version} | OS: ${AlhadiyaTracker.deviceInfo.os} | Device: ${AlhadiyaTracker.deviceInfo.device_type} | Screen: ${AlhadiyaTracker.deviceInfo.screen_size} | CPU: ${AlhadiyaTracker.deviceInfo.cpu_cores} cores | Touch: ${AlhadiyaTracker.deviceInfo.touchscreen_detected ? 'Yes' : 'No'}`;
+        // Send initial detailed device info as event with enhanced info
+        const deviceDetailString = `Language: ${language} | Timezone: ${timezone} | Browser: ${browserInfo.name} ${browserInfo.version} | Engine: ${browserInfo.engine} | OS: ${osInfo.name} ${osInfo.version} | Platform: ${navigator.platform} | Device: ${deviceType} | Screen: ${screenWidth}x${screenHeight} | CPU: ${navigator.hardwareConcurrency || 'unknown'} cores | Touch: ${touchSupport ? 'Yes' : 'No'} | Caps Lock: ${AlhadiyaTracker.userInteractions.capsLockState}`;
         
         trackEvent('device_info_detailed', 'Device Information Collected', deviceDetailString);
+        
+        // Get IP-based geolocation
+        getIPGeolocation();
     }
 
     /**
@@ -200,11 +209,34 @@
             updateViewportSize();
         });
         
-        // Form events
+        // Form events with enhanced payment method tracking
         $('input, textarea, select').on('focus', function(e) {
             trackFormEvent('focus', $(this));
         }).on('change', function(e) {
             trackFormEvent('change', $(this));
+            
+            // Special tracking for payment method selection
+            const element = $(this);
+            const fieldName = element.attr('name') || '';
+            const fieldValue = element.val() || '';
+            
+            if (fieldName.includes('payment') || element.hasClass('payment-method') || element.attr('data-payment')) {
+                trackEvent('payment_method_select', 'Payment Method Selected', fieldValue);
+            }
+        });
+        
+        // Payment method radio button tracking (specific for bkash, nagad, etc.)
+        $('input[type="radio"]').on('change', function() {
+            const element = $(this);
+            if (element.is(':checked')) {
+                const fieldName = element.attr('name') || '';
+                const fieldValue = element.val() || '';
+                
+                if (fieldName.includes('payment') || fieldValue.toLowerCase().includes('bkash') || 
+                    fieldValue.toLowerCase().includes('nagad') || fieldValue.toLowerCase().includes('rocket')) {
+                    trackEvent('payment_method_select', 'Payment Method Selected', fieldValue);
+                }
+            }
         });
         
         // Form submission
@@ -288,15 +320,19 @@
      */
     function trackScrolling() {
         const scrollTop = $(window).scrollTop();
+        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
         const documentHeight = $(document).height();
         const windowHeight = $(window).height();
         const scrollPercent = Math.round((scrollTop / (documentHeight - windowHeight)) * 100);
         
+        // Update scroll Y position
+        AlhadiyaTracker.userInteractions.scrollY = scrollY;
+        
         if (scrollPercent > AlhadiyaTracker.userInteractions.scrollDepth && scrollPercent <= 100) {
             AlhadiyaTracker.userInteractions.scrollDepth = scrollPercent;
             
-            // Send detailed scroll events
-            const scrollDetailString = `Scroll Depth: ${scrollPercent}% | Position: ${scrollTop}px of ${documentHeight}px | Window: ${windowHeight}px | Visible: ${Math.round((windowHeight / documentHeight) * 100)}%`;
+            // Send detailed scroll events with ScrollY
+            const scrollDetailString = `Scroll Depth: ${scrollPercent}% | ScrollY: ${scrollY}px | Position: ${scrollTop}px of ${documentHeight}px | Window: ${windowHeight}px | Visible: ${Math.round((windowHeight / documentHeight) * 100)}%`;
             
             // Send milestone events with details
             if (scrollPercent % 25 === 0 || scrollPercent === 100) {
@@ -305,6 +341,9 @@
                 // Send every 10% for more granular tracking
                 trackEvent('scroll_progress', 'Scroll Progress', scrollDetailString);
             }
+            
+            // Track scroll depth specifically as per requirements
+            trackEvent('scroll_depth', 'Scroll Depth', `${scrollPercent}%`);
         }
         
         // Update activity timestamp
@@ -381,29 +420,61 @@
     }
 
     /**
-     * Track mouse movements
+     * Track mouse movements with cursor position
      */
     function trackMouseMovement(event) {
         AlhadiyaTracker.userInteractions.mouseMovements++;
+        
+        // Store current cursor position
+        AlhadiyaTracker.userInteractions.lastCursorPosition = {
+            x: event.pageX,
+            y: event.pageY,
+            timestamp: Date.now()
+        };
+        
+        // Track cursor position every 100 movements for analysis
+        if (AlhadiyaTracker.userInteractions.mouseMovements % 100 === 0) {
+            trackEvent('cursor_position', 'Cursor Position', `X:${event.pageX}, Y:${event.pageY} | Movements: ${AlhadiyaTracker.userInteractions.mouseMovements}`);
+        }
+        
         AlhadiyaTracker.lastActivity = Date.now();
     }
 
     /**
-     * Track button clicks
+     * Track button clicks with enhanced details for specific requirements
      */
     function trackButtonClick(button) {
         const buttonText = button.text().trim() || button.val() || 'Unknown Button';
         const buttonClass = button.attr('class') || '';
         const buttonId = button.attr('id') || '';
+        const buttonHref = button.attr('href') || '';
+        
+        // Check for specific requirement buttons
+        if (buttonClass.includes('float')) {
+            // WhatsApp button tracking
+            trackEvent('button_whatsapp_click', 'WhatsApp Button Click', buttonText);
+            trackEvent('button_visibility', 'Button Visible', 'WhatsApp button (.float) - ' + buttonText);
+        } else if (buttonClass.includes('callbtnlaptop')) {
+            // Call button tracking
+            trackEvent('button_call_click', 'Call Button Click', buttonText);
+            trackEvent('button_visibility', 'Button Visible', 'Call button (.callbtnlaptop) - ' + buttonText);
+        }
         
         const buttonData = {
             text: buttonText.substring(0, 50),
             class: buttonClass,
             id: buttonId,
-            href: button.attr('href') || ''
+            href: buttonHref,
+            timestamp: new Date().toISOString()
         };
         
-        trackEvent(EVENT_TYPES.BUTTON_CLICK, 'Button Click', JSON.stringify(buttonData));
+        // Enhanced button click details
+        const buttonDetailString = `Button: "${buttonText}" | Class: ${buttonClass} | ID: ${buttonId} | Type: ${buttonHref ? 'Link' : 'Button'} | Time: ${new Date().toLocaleTimeString()}`;
+        
+        trackEvent(EVENT_TYPES.BUTTON_CLICK, 'Button Click', buttonDetailString);
+        
+        // Legacy format for compatibility
+        trackEvent('button_click_detailed', 'Button Click Detailed', JSON.stringify(buttonData));
     }
 
     /**
@@ -701,7 +772,7 @@
                 const timeActive = Math.round((Date.now() - AlhadiyaTracker.startTime) / 1000);
                 const lastActivity = Math.round((Date.now() - AlhadiyaTracker.lastActivity) / 1000);
                 
-                const activityDetailString = `Session Time: ${Math.floor(timeActive / 60)}m ${timeActive % 60}s | Last Activity: ${lastActivity}s ago | Scroll: ${AlhadiyaTracker.userInteractions.scrollDepth}% | Clicks: ${AlhadiyaTracker.userInteractions.clickCount} | Keys: ${AlhadiyaTracker.userInteractions.keypressCount} | Mouse: ${AlhadiyaTracker.userInteractions.mouseMovements} | Current Section: ${AlhadiyaTracker.currentSection || 'Unknown'} | Last Key: ${AlhadiyaTracker.userInteractions.lastKeyPressed || 'None'}`;
+                const activityDetailString = `Session Time: ${Math.floor(timeActive / 60)}m ${timeActive % 60}s | Last Activity: ${lastActivity}s ago | Scroll: ${AlhadiyaTracker.userInteractions.scrollDepth}% | ScrollY: ${AlhadiyaTracker.userInteractions.scrollY}px | Clicks: ${AlhadiyaTracker.userInteractions.clickCount} | Keys: ${AlhadiyaTracker.userInteractions.keypressCount} | Mouse: ${AlhadiyaTracker.userInteractions.mouseMovements} | Current Section: ${AlhadiyaTracker.currentSection || 'Unknown'} | Last Key: ${AlhadiyaTracker.userInteractions.lastKeyPressed || 'None'} | Caps Lock: ${AlhadiyaTracker.userInteractions.capsLockState}`;
                 
                 trackEvent('activity_summary', 'User Activity Summary', activityDetailString);
                 
@@ -710,6 +781,13 @@
                     const lastClick = AlhadiyaTracker.userInteractions.clickPositions[AlhadiyaTracker.userInteractions.clickPositions.length - 1];
                     const lastClickString = `Last Click: X:${lastClick.x}, Y:${lastClick.y} | Element: ${lastClick.element} | Time: ${new Date(lastClick.timestamp).toLocaleTimeString()}`;
                     trackEvent('last_click_position', 'Last Click Position', lastClickString);
+                }
+                
+                // Send current cursor position if available
+                if (AlhadiyaTracker.userInteractions.lastCursorPosition) {
+                    const cursor = AlhadiyaTracker.userInteractions.lastCursorPosition;
+                    const cursorString = `Current Cursor: X:${cursor.x}, Y:${cursor.y} | Mouse Movements: ${AlhadiyaTracker.userInteractions.mouseMovements}`;
+                    trackEvent('cursor_position_summary', 'Current Cursor Position', cursorString);
                 }
             }
         }, 30000);
@@ -730,6 +808,70 @@
                 $('input[name="' + fieldName + '"], input[id="' + fieldName + '"]').val(storedValue);
             }
         });
+    }
+    
+    /**
+     * Detect Caps Lock state
+     */
+    function detectCapsLockState() {
+        $(document).on('keypress', function(event) {
+            const char = String.fromCharCode(event.which);
+            if (char && char.match(/[a-zA-Z]/)) {
+                const isUpperCase = char === char.toUpperCase();
+                const isShiftPressed = event.shiftKey;
+                
+                if (isUpperCase && !isShiftPressed) {
+                    AlhadiyaTracker.userInteractions.capsLockState = 'ON';
+                } else if (!isUpperCase && !isShiftPressed) {
+                    AlhadiyaTracker.userInteractions.capsLockState = 'OFF';
+                }
+                
+                // Track caps lock state change
+                trackEvent('caps_lock_state', 'Caps Lock State', AlhadiyaTracker.userInteractions.capsLockState);
+            }
+        });
+    }
+    
+    /**
+     * Get IP-based geolocation information
+     */
+    function getIPGeolocation() {
+        // Try multiple IP geolocation services for reliability
+        const ipServices = [
+            'https://ipapi.co/json/',
+            'https://ipinfo.io/json',
+            'https://api.ipify.org?format=json'
+        ];
+        
+        function tryIPService(index) {
+            if (index >= ipServices.length) {
+                console.log('AlhadiyaTracker: All IP services failed');
+                trackEvent('geolocation_info', 'IP Geolocation', 'Failed to get location info');
+                return;
+            }
+            
+            $.get(ipServices[index])
+                .done(function(data) {
+                    let locationString = '';
+                    if (data.city && data.country) {
+                        locationString = `IP: ${data.ip || 'unknown'} | City: ${data.city} | Country: ${data.country} | ISP: ${data.org || data.isp || 'unknown'}`;
+                    } else if (data.ip) {
+                        locationString = `IP: ${data.ip} | Location: unknown`;
+                    }
+                    
+                    if (locationString) {
+                        trackEvent('geolocation_info', 'IP Geolocation', locationString);
+                        console.log('AlhadiyaTracker: Geolocation obtained', data);
+                    }
+                })
+                .fail(function() {
+                    console.log('AlhadiyaTracker: IP service ' + (index + 1) + ' failed, trying next...');
+                    tryIPService(index + 1);
+                });
+        }
+        
+        // Start with first service
+        tryIPService(0);
     }
 
     /**

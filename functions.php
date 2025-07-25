@@ -2224,6 +2224,17 @@ function device_session_details_page() {
         'video_ended' => 'Video Ended',
         'video_buffering' => 'Video Buffering',
         
+        // Enhanced Requirement Events
+        'button_whatsapp_click' => 'WhatsApp Button (.float) Click',
+        'button_call_click' => 'Call Button (.callbtnlaptop) Click',
+        'button_visibility' => 'Button Visibility',
+        'payment_method_select' => 'Payment Method Selection',
+        'cursor_position' => 'Cursor Position',
+        'cursor_position_summary' => 'Cursor Position Summary',
+        'caps_lock_state' => 'Caps Lock State',
+        'geolocation_info' => 'IP Geolocation Info',
+        'button_click_detailed' => 'Button Click (Enhanced)',
+        
         // Testing and Debugging Events
         'tracker_test' => 'Tracker Test Event',
         'fallback_page_view' => 'Fallback Page View',
