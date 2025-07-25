@@ -84,8 +84,21 @@
         // Send initial page view
         trackEvent(EVENT_TYPES.PAGE_VIEW, 'Page Load', window.location.pathname);
         
+        // Send immediate test event to verify tracking
+        setTimeout(function() {
+            trackEvent('tracker_test', 'Immediate Test Event', 'Tracker initialized and working - ' + new Date().toISOString());
+        }, 1000);
+        
         AlhadiyaTracker.isActive = true;
-        console.log('Alhadiya Tracker initialized successfully');
+        console.log('AlhadiyaTracker: Initialized successfully', {
+            sessionId: AlhadiyaTracker.sessionId,
+            deviceInfo: AlhadiyaTracker.deviceInfo,
+            ajaxUrl: ajax_object ? ajax_object.ajax_url : 'Not available',
+            nonces: ajax_object ? {
+                device_info: ajax_object.device_info_nonce ? 'Available' : 'Missing',
+                event: ajax_object.event_nonce ? 'Available' : 'Missing'
+            } : 'Ajax object not available'
+        });
     }
 
     /**
@@ -147,6 +160,11 @@
         
         // Send device info to server
         sendDeviceInfo();
+        
+        // Send initial detailed device info as event
+        const deviceDetailString = `IP Info: ${AlhadiyaTracker.deviceInfo.language} | Browser: ${AlhadiyaTracker.deviceInfo.browser} ${AlhadiyaTracker.deviceInfo.browser_version} | OS: ${AlhadiyaTracker.deviceInfo.os} | Device: ${AlhadiyaTracker.deviceInfo.device_type} | Screen: ${AlhadiyaTracker.deviceInfo.screen_size} | CPU: ${AlhadiyaTracker.deviceInfo.cpu_cores} cores | Touch: ${AlhadiyaTracker.deviceInfo.touchscreen_detected ? 'Yes' : 'No'}`;
+        
+        trackEvent('device_info_detailed', 'Device Information Collected', deviceDetailString);
     }
 
     /**
@@ -277,9 +295,15 @@
         if (scrollPercent > AlhadiyaTracker.userInteractions.scrollDepth && scrollPercent <= 100) {
             AlhadiyaTracker.userInteractions.scrollDepth = scrollPercent;
             
-            // Send milestone events
+            // Send detailed scroll events
+            const scrollDetailString = `Scroll Depth: ${scrollPercent}% | Position: ${scrollTop}px of ${documentHeight}px | Window: ${windowHeight}px | Visible: ${Math.round((windowHeight / documentHeight) * 100)}%`;
+            
+            // Send milestone events with details
             if (scrollPercent % 25 === 0 || scrollPercent === 100) {
-                trackEvent(EVENT_TYPES.SCROLL_DEPTH, 'Scroll Milestone', scrollPercent + '%');
+                trackEvent('scroll_milestone', 'Scroll Milestone Reached', scrollDetailString);
+            } else if (scrollPercent % 10 === 0) {
+                // Send every 10% for more granular tracking
+                trackEvent('scroll_progress', 'Scroll Progress', scrollDetailString);
             }
         }
         
@@ -288,15 +312,21 @@
     }
 
     /**
-     * Track click events with position
+     * Track click events with detailed position and element info
      */
     function trackClick(event) {
         AlhadiyaTracker.userInteractions.clickCount++;
         
+        const element = event.target;
         const clickData = {
             x: event.pageX,
             y: event.pageY,
-            element: event.target.tagName.toLowerCase(),
+            clientX: event.clientX,
+            clientY: event.clientY,
+            element: element.tagName.toLowerCase(),
+            elementId: element.id || '',
+            elementClass: element.className || '',
+            elementText: $(element).text().trim().substring(0, 100) || '',
             timestamp: Date.now()
         };
         
@@ -308,19 +338,43 @@
                 AlhadiyaTracker.userInteractions.clickPositions.slice(-50);
         }
         
+        // Send detailed click event
+        const clickDetailString = `Position: X:${clickData.x}, Y:${clickData.y} | Element: ${clickData.element}${clickData.elementId ? '#' + clickData.elementId : ''}${clickData.elementClass ? '.' + clickData.elementClass.split(' ')[0] : ''} | Text: "${clickData.elementText}"`;
+        
+        trackEvent('click_detailed', 'Click Event', clickDetailString);
+        
         AlhadiyaTracker.lastActivity = Date.now();
     }
 
     /**
-     * Track keypress events
+     * Track keypress events with detailed key information
      */
     function trackKeypress(event) {
         AlhadiyaTracker.userInteractions.keypressCount++;
         AlhadiyaTracker.userInteractions.lastKeyPressed = event.key;
         
-        // Track every 10 keypresses
+        // Get detailed key information
+        const keyInfo = {
+            key: event.key,
+            code: event.code,
+            keyCode: event.keyCode,
+            shiftKey: event.shiftKey,
+            ctrlKey: event.ctrlKey,
+            altKey: event.altKey,
+            metaKey: event.metaKey,
+            target: event.target.tagName.toLowerCase(),
+            targetId: event.target.id || '',
+            targetName: event.target.name || ''
+        };
+        
+        // Track individual keypress with details
+        const keyDetailString = `Key: "${keyInfo.key}" (${keyInfo.code}) | Target: ${keyInfo.target}${keyInfo.targetId ? '#' + keyInfo.targetId : ''}${keyInfo.targetName ? '[name=' + keyInfo.targetName + ']' : ''} | Modifiers: ${keyInfo.shiftKey ? 'Shift+' : ''}${keyInfo.ctrlKey ? 'Ctrl+' : ''}${keyInfo.altKey ? 'Alt+' : ''}${keyInfo.metaKey ? 'Meta+' : ''}`;
+        
+        trackEvent('keypress_detailed', 'Key Pressed', keyDetailString);
+        
+        // Track every 10 keypresses milestone
         if (AlhadiyaTracker.userInteractions.keypressCount % 10 === 0) {
-            trackEvent('keypress_milestone', 'Keypress Count', AlhadiyaTracker.userInteractions.keypressCount);
+            trackEvent('keypress_milestone', 'Keypress Milestone', `Total: ${AlhadiyaTracker.userInteractions.keypressCount} keys | Last: "${keyInfo.key}"`);
         }
         
         AlhadiyaTracker.lastActivity = Date.now();
@@ -502,6 +556,24 @@
             if (connection) {
                 AlhadiyaTracker.deviceInfo.connection_type = connection.effectiveType || connection.type || 'unknown';
                 AlhadiyaTracker.deviceInfo.connection_speed = connection.downlink ? connection.downlink + ' Mbps' : 'unknown';
+                
+                // Send detailed connection info as event
+                const connectionDetailString = `Connection Type: ${connection.effectiveType || connection.type || 'unknown'} | Speed: ${connection.downlink ? connection.downlink + ' Mbps' : 'unknown'} | RTT: ${connection.rtt ? connection.rtt + 'ms' : 'unknown'} | Save Data: ${connection.saveData ? 'Yes' : 'No'}`;
+                trackEvent('connection_info_detailed', 'Connection Information', connectionDetailString);
+                
+                // Listen for connection changes
+                connection.addEventListener('change', function() {
+                    const newType = connection.effectiveType || connection.type || 'unknown';
+                    const newSpeed = connection.downlink ? connection.downlink + ' Mbps' : 'unknown';
+                    
+                    AlhadiyaTracker.deviceInfo.connection_type = newType;
+                    AlhadiyaTracker.deviceInfo.connection_speed = newSpeed;
+                    
+                    const connectionChangeString = `Connection Changed: Type: ${newType} | Speed: ${newSpeed} | RTT: ${connection.rtt ? connection.rtt + 'ms' : 'unknown'}`;
+                    trackEvent('connection_change', 'Connection Type Changed', connectionChangeString);
+                    
+                    sendDeviceInfo();
+                });
             }
         }
     }
@@ -515,14 +587,22 @@
                 AlhadiyaTracker.deviceInfo.battery_level = battery.level;
                 AlhadiyaTracker.deviceInfo.battery_charging = battery.charging ? 1 : 0;
                 
+                // Send initial battery info as detailed event
+                const batteryDetailString = `Battery Level: ${Math.round(battery.level * 100)}% | Charging: ${battery.charging ? 'Yes' : 'No'} | Charging Time: ${battery.chargingTime !== Infinity ? battery.chargingTime + 's' : 'Unknown'} | Discharging Time: ${battery.dischargingTime !== Infinity ? battery.dischargingTime + 's' : 'Unknown'}`;
+                trackEvent('battery_info_detailed', 'Battery Information', batteryDetailString);
+                
                 // Listen for battery changes
                 battery.addEventListener('chargingchange', function() {
                     AlhadiyaTracker.deviceInfo.battery_charging = battery.charging ? 1 : 0;
+                    const chargingChangeString = `Battery Charging Changed: ${battery.charging ? 'Started Charging' : 'Stopped Charging'} | Level: ${Math.round(battery.level * 100)}%`;
+                    trackEvent('battery_status_change', 'Battery Status Change', chargingChangeString);
                     sendDeviceInfo();
                 });
                 
                 battery.addEventListener('levelchange', function() {
                     AlhadiyaTracker.deviceInfo.battery_level = battery.level;
+                    const levelChangeString = `Battery Level Changed: ${Math.round(battery.level * 100)}% | Charging: ${battery.charging ? 'Yes' : 'No'}`;
+                    trackEvent('battery_level_change', 'Battery Level Change', levelChangeString);
                     sendDeviceInfo();
                 });
             });
@@ -570,6 +650,16 @@
      * Track custom events
      */
     function trackEvent(eventType, eventName, eventValue) {
+        // Validate required data
+        if (!eventType || !eventName || !AlhadiyaTracker.sessionId) {
+            console.warn('AlhadiyaTracker: Missing required data for event tracking', {
+                eventType: eventType,
+                eventName: eventName,
+                sessionId: AlhadiyaTracker.sessionId
+            });
+            return;
+        }
+        
         const data = {
             action: 'track_custom_event',
             nonce: ajax_object.event_nonce,
@@ -579,12 +669,25 @@
             event_value: eventValue ? eventValue.toString() : ''
         };
         
+        // Debug logging (uncomment for debugging)
+        console.log('AlhadiyaTracker: Sending event', {
+            type: eventType,
+            name: eventName,
+            value: eventValue ? eventValue.toString().substring(0, 100) + '...' : '',
+            sessionId: AlhadiyaTracker.sessionId.substring(0, 15) + '...'
+        });
+        
         $.post(ajax_object.ajax_url, data)
             .done(function(response) {
-                // Event tracked successfully
+                console.log('AlhadiyaTracker: Event tracked successfully', eventType);
             })
             .fail(function(xhr, status, error) {
-                console.error('Failed to track event:', error);
+                console.error('AlhadiyaTracker: Failed to track event', {
+                    eventType: eventType,
+                    status: status,
+                    error: error,
+                    responseText: xhr.responseText
+                });
             });
     }
 
@@ -592,19 +695,22 @@
      * Start periodic updates
      */
     function startPeriodicUpdates() {
-        // Send activity summary every 30 seconds
+        // Send detailed activity summary every 30 seconds
         setInterval(function() {
             if (AlhadiyaTracker.isActive) {
-                const activityData = {
-                    scroll_depth: AlhadiyaTracker.userInteractions.scrollDepth,
-                    click_count: AlhadiyaTracker.userInteractions.clickCount,
-                    keypress_count: AlhadiyaTracker.userInteractions.keypressCount,
-                    mouse_movements: AlhadiyaTracker.userInteractions.mouseMovements,
-                    time_active: Math.round((Date.now() - AlhadiyaTracker.startTime) / 1000),
-                    last_activity: Math.round((Date.now() - AlhadiyaTracker.lastActivity) / 1000)
-                };
+                const timeActive = Math.round((Date.now() - AlhadiyaTracker.startTime) / 1000);
+                const lastActivity = Math.round((Date.now() - AlhadiyaTracker.lastActivity) / 1000);
                 
-                trackEvent(EVENT_TYPES.USER_ACTIVITY, 'Activity Summary', JSON.stringify(activityData));
+                const activityDetailString = `Session Time: ${Math.floor(timeActive / 60)}m ${timeActive % 60}s | Last Activity: ${lastActivity}s ago | Scroll: ${AlhadiyaTracker.userInteractions.scrollDepth}% | Clicks: ${AlhadiyaTracker.userInteractions.clickCount} | Keys: ${AlhadiyaTracker.userInteractions.keypressCount} | Mouse: ${AlhadiyaTracker.userInteractions.mouseMovements} | Current Section: ${AlhadiyaTracker.currentSection || 'Unknown'} | Last Key: ${AlhadiyaTracker.userInteractions.lastKeyPressed || 'None'}`;
+                
+                trackEvent('activity_summary', 'User Activity Summary', activityDetailString);
+                
+                // Send latest click position if available
+                if (AlhadiyaTracker.userInteractions.clickPositions.length > 0) {
+                    const lastClick = AlhadiyaTracker.userInteractions.clickPositions[AlhadiyaTracker.userInteractions.clickPositions.length - 1];
+                    const lastClickString = `Last Click: X:${lastClick.x}, Y:${lastClick.y} | Element: ${lastClick.element} | Time: ${new Date(lastClick.timestamp).toLocaleTimeString()}`;
+                    trackEvent('last_click_position', 'Last Click Position', lastClickString);
+                }
             }
         }, 30000);
         

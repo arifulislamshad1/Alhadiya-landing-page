@@ -147,25 +147,44 @@
 
 <!-- Alhadiya Device Tracking (Hidden - No Visual Impact) -->
 <script type="text/javascript">
-// Initialize device tracking on page load
+// Enhanced device tracking initialization
 jQuery(document).ready(function($) {
-    // Ensure tracking starts immediately but silently
-    if (typeof deviceTracker !== 'undefined' && !deviceTracker.isTracking) {
-        console.log('Initializing fallback device tracking...');
-        // Fallback initialization if main script didn't load
-        setTimeout(function() {
+    console.log('Footer tracking script loaded');
+    
+    // Wait for main tracker to initialize
+    setTimeout(function() {
+        if (typeof AlhadiyaTracker !== 'undefined' && AlhadiyaTracker.isActive) {
+            console.log('AlhadiyaTracker: Main tracker is active, sending test event');
+            // Send test event to verify tracking is working
+            if (typeof ajax_object !== 'undefined') {
+                $.post(ajax_object.ajax_url, {
+                    action: 'track_custom_event',
+                    nonce: ajax_object.event_nonce,
+                    session_id: AlhadiyaTracker.sessionId,
+                    event_type: 'tracker_test',
+                    event_name: 'Tracker Test Event',
+                    event_value: 'Tracker is working properly - ' + new Date().toISOString()
+                }).done(function(response) {
+                    console.log('AlhadiyaTracker: Test event sent successfully', response);
+                }).fail(function(xhr, status, error) {
+                    console.error('AlhadiyaTracker: Test event failed', error);
+                });
+            }
+        } else {
+            console.warn('AlhadiyaTracker: Main tracker not active, using fallback');
+            // Fallback initialization if main script didn't load
             if (typeof ajax_object !== 'undefined') {
                 $.post(ajax_object.ajax_url, {
                     action: 'track_custom_event',
                     nonce: ajax_object.event_nonce,
                     session_id: 'fallback_' + Date.now(),
-                    event_type: 'page_view',
-                    event_name: 'Page Load',
-                    event_value: window.location.pathname
+                    event_type: 'fallback_page_view',
+                    event_name: 'Fallback Page Load',
+                    event_value: 'Fallback tracking - ' + window.location.pathname
                 });
             }
-        }, 1000);
-    }
+        }
+    }, 2000);
 });
 </script>
 

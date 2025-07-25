@@ -2163,35 +2163,75 @@ function device_session_details_page() {
 
     // List of all possible event types for checkboxes
     $all_event_types = array(
+        // Core Events
         'page_view' => 'Page View',
+        'section_view' => 'Section Viewed',
+        'section_time_spent' => 'Section Time Spent',
+        
+        // Detailed Device Info Events
+        'device_info_detailed' => 'Device Information',
+        'battery_info_detailed' => 'Battery Information',
+        'connection_info_detailed' => 'Connection Information',
+        'battery_status_change' => 'Battery Status Change',
+        'battery_level_change' => 'Battery Level Change',
+        'connection_change' => 'Connection Change',
+        
+        // Detailed User Interaction Events
+        'click_detailed' => 'Click Event (Detailed)',
+        'keypress_detailed' => 'Key Pressed (Detailed)',
+        'keypress_milestone' => 'Keypress Milestone',
+        'last_click_position' => 'Last Click Position',
+        
+        // Scroll Events
+        'scroll_milestone' => 'Scroll Milestone',
+        'scroll_progress' => 'Scroll Progress',
+        'scroll_depth' => 'Scroll Depth',
+        
+        // Activity Tracking
+        'activity_summary' => 'Activity Summary',
+        'user_activity' => 'User Activity',
+        
+        // Swiper Events
         'swiper_slide_change' => 'Swiper Slide Change',
         'swiper_nav_click' => 'Swiper Navigation Click',
         'swiper_pagination_click' => 'Swiper Pagination Click',
-        'section_view' => 'Section Viewed',
-        'section_time_spent' => 'Section Time Spent',
+        
+        // Button Events
         'button_visible' => 'Button Visible',
         'button_time_spent' => 'Button Time Spent',
         'button_click' => 'Button Click',
-        'scroll' => 'Scroll',
-        'scroll_depth' => 'Scroll Depth', // New event type
-        'click_position' => 'Click Position', // New event type
-        'key_press' => 'Key Press', // New event type
+        
+        // Form Events
+        'form_field_focus' => 'Form Field Focus',
+        'form_field_change' => 'Form Field Change',
         'product_select' => 'Product Select',
         'delivery_option_select' => 'Delivery Option Select',
         'payment_method_select' => 'Payment Method Select',
-        'form_field_focus' => 'Form Field Focus',
-        'form_field_change' => 'Form Field Change',
-        'faq_toggle' => 'FAQ Toggle',
+        
+        // Order Events
         'order_form_submit' => 'Order Form Submit',
         'order_success' => 'Order Success',
         'order_failure' => 'Order Failure',
         'order_error' => 'Order Error',
+        
+        // FAQ Events
+        'faq_toggle' => 'FAQ Toggle',
+        
+        // Video Events
         'video_ready' => 'Video Ready',
         'video_play' => 'Video Play',
         'video_pause' => 'Video Pause',
         'video_ended' => 'Video Ended',
         'video_buffering' => 'Video Buffering',
-        'battery_status_change' => 'Battery Status Change', // New event type
+        
+        // Testing and Debugging Events
+        'tracker_test' => 'Tracker Test Event',
+        'fallback_page_view' => 'Fallback Page View',
+        
+        // Legacy Events (for backward compatibility)
+        'scroll' => 'Scroll (Legacy)',
+        'click_position' => 'Click Position (Legacy)',
+        'key_press' => 'Key Press (Legacy)',
     );
 
     ?>
