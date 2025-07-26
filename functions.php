@@ -3316,3 +3316,110 @@ function alhadiya_server_events_dashboard() {
     </style>
     <?php
 }
+
+// ================= AJAX Nonce Fix =================
+add_action('wp_enqueue_scripts', function() {
+    wp_localize_script('alhadiya-tracking', 'ajax_object', array(
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'server_event_nonce' => wp_create_nonce('alhadiya_server_event_nonce')
+    ));
+}, 20);
+
+add_action('wp_ajax_alhadiya_server_event', 'alhadiya_handle_server_event');
+add_action('wp_ajax_nopriv_alhadiya_server_event', 'alhadiya_handle_server_event');
+function alhadiya_handle_server_event() {
+    if (!isset($_POST['server_event_nonce']) || !wp_verify_nonce($_POST['server_event_nonce'], 'alhadiya_server_event_nonce')) {
+        wp_send_json_error('Security check failed');
+    }
+    // ...rest of your event handling code...
+}
+
+// ================= Session Logic =================
+function alhadiya_init_server_session() {
+    if (class_exists('WooCommerce') && function_exists('WC')) {
+        try {
+            if (!WC()->session) {
+                WC()->session = new WC_Session_Handler();
+            }
+            if (!WC()->session->get('alhadiya_session_id')) {
+                $custom_session_id = 'ss_' . uniqid() . '_' . time();
+                WC()->session->set('alhadiya_session_id', $custom_session_id);
+                return $custom_session_id;
+            }
+            return WC()->session->get('alhadiya_session_id');
+        } catch (Exception $e) {
+            error_log('WooCommerce session error: ' . $e->getMessage());
+        }
+    }
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    if (!isset($_SESSION['alhadiya_session_id'])) {
+        $_SESSION['alhadiya_session_id'] = 'ss_' . uniqid() . '_' . time();
+    }
+    return $_SESSION['alhadiya_session_id'];
+}
+
+function alhadiya_init_woocommerce_session() {
+    if (class_exists('WooCommerce') && function_exists('WC')) {
+        try {
+            if (!did_action('woocommerce_init')) return;
+            alhadiya_init_server_session();
+        } catch (Exception $e) {
+            error_log('WooCommerce session initialization error: ' . $e->getMessage());
+        }
+    }
+}
+if (class_exists('WooCommerce')) {
+    add_action('woocommerce_init', 'alhadiya_init_woocommerce_session');
+} else {
+    add_action('init', 'alhadiya_init_server_session');
+}
+
+// ================= Database Table Auto Create =================
+function create_device_tracking_table() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'device_tracking';
+    $charset_collate = $wpdb->get_charset_collate();
+    $sql = "CREATE TABLE IF NOT EXISTS $table_name (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        session_id VARCHAR(255) NOT NULL,
+        user_ip VARCHAR(100) DEFAULT NULL,
+        user_agent TEXT DEFAULT NULL,
+        referrer TEXT DEFAULT NULL,
+        visit_count INT DEFAULT 1,
+        time_spent INT DEFAULT 0,
+        pages_viewed INT DEFAULT 1,
+        purchased TINYINT(1) DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY session_id (session_id)
+    ) $charset_collate;";
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+add_action('after_switch_theme', 'create_device_tracking_table');
+add_action('init', 'create_device_tracking_table');
+
+function create_device_events_table() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'device_events';
+    $charset_collate = $wpdb->get_charset_collate();
+    $sql = "CREATE TABLE IF NOT EXISTS $table_name (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        session_id VARCHAR(255) NOT NULL,
+        event_type VARCHAR(100) NOT NULL,
+        event_data TEXT DEFAULT NULL,
+        event_value TEXT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY session_id (session_id)
+    ) $charset_collate;";
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+add_action('after_switch_theme', 'create_device_events_table');
+add_action('init', 'create_device_events_table');
+
+// ================= Swiper Helper (for JS) =================
+// (No PHP needed, see index.php for JS)
