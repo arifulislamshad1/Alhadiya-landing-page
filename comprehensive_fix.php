@@ -1,47 +1,52 @@
 <?php
 /**
- * Comprehensive Fix Script for Alhadiya Tracking System
- * This script addresses all remaining issues and ensures proper functionality
+ * Comprehensive Fix Script for WordPress Theme Tracking System
+ * This script addresses all remaining issues in functions.php and index.php
  */
 
 // Prevent direct access
 if (!defined('ABSPATH')) {
-    define('ABSPATH', dirname(__FILE__) . '/');
-    require_once(ABSPATH . 'wp-config.php');
+    exit;
 }
 
-// Ensure WordPress is loaded
-if (!function_exists('wp_verify_nonce')) {
-    require_once(ABSPATH . 'wp-load.php');
+// ========================================
+// FIX 1: ENSURE PROPER NONCE LOCALIZATION
+// ========================================
+
+// Remove the duplicate nonce localization and ensure proper one
+remove_action('wp_enqueue_scripts', 'alhadiya_add_server_tracking_nonce', 20);
+
+// Add proper nonce localization
+function alhadiya_fix_nonce_localization() {
+    wp_localize_script('jquery', 'ajax_object', array(
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('alhadiya_nonce'),
+        'wc_ajax_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('%%endpoint%%') : '',
+        'dhaka_delivery_charge' => get_theme_mod('dhaka_delivery_charge', 0),
+        'outside_dhaka_delivery_charge' => get_theme_mod('outside_dhaka_delivery_charge', 0),
+        'phone_number' => get_theme_mod('phone_number', '+8801737146996'),
+        'device_info_nonce' => wp_create_nonce('alhadiya_device_info_nonce'),
+        'event_nonce' => wp_create_nonce('alhadiya_event_nonce'),
+        'screen_size_nonce' => wp_create_nonce('alhadiya_screen_size_nonce'),
+        'activity_nonce' => wp_create_nonce('alhadiya_activity_nonce'),
+        'server_event_nonce' => wp_create_nonce('alhadiya_server_event_nonce')
+    ));
 }
+add_action('wp_enqueue_scripts', 'alhadiya_fix_nonce_localization', 15);
 
-echo "<h1>Comprehensive Fix Script for Alhadiya Tracking System</h1>\n";
-echo "<p>Starting comprehensive fixes...</p>\n";
+// ========================================
+// FIX 2: ENSURE DATABASE TABLES EXIST
+// ========================================
 
-// 1. Fix Database Tables
-echo "<h2>1. Fixing Database Tables</h2>\n";
-
-global $wpdb;
-
-// Fix device_tracking table
-$device_tracking_table = $wpdb->prefix . 'device_tracking';
-$device_events_table = $wpdb->prefix . 'device_events';
-$server_events_table = $wpdb->prefix . 'server_events';
-
-// Check if tables exist
-$device_tracking_exists = $wpdb->get_var("SHOW TABLES LIKE '$device_tracking_table'") == $device_tracking_table;
-$device_events_exists = $wpdb->get_var("SHOW TABLES LIKE '$device_events_table'") == $device_events_table;
-$server_events_exists = $wpdb->get_var("SHOW TABLES LIKE '$server_events_table'") == $server_events_table;
-
-echo "<p>Device tracking table exists: " . ($device_tracking_exists ? 'Yes' : 'No') . "</p>\n";
-echo "<p>Device events table exists: " . ($device_events_exists ? 'Yes' : 'No') . "</p>\n";
-echo "<p>Server events table exists: " . ($server_events_exists ? 'Yes' : 'No') . "</p>\n";
-
-// Create missing tables
-if (!$device_tracking_exists) {
-    echo "<p>Creating device_tracking table...</p>\n";
+// Force create tables on every page load during development
+function alhadiya_force_create_tables() {
+    global $wpdb;
+    
+    // Device tracking table
+    $device_tracking_table = $wpdb->prefix . 'device_tracking';
     $charset_collate = $wpdb->get_charset_collate();
-    $sql = "CREATE TABLE $device_tracking_table (
+    
+    $device_sql = "CREATE TABLE IF NOT EXISTS $device_tracking_table (
         id mediumint(9) NOT NULL AUTO_INCREMENT,
         session_id varchar(255) NOT NULL,
         ip_address varchar(45) NOT NULL,
@@ -77,15 +82,9 @@ if (!$device_tracking_exists) {
         KEY ip_address (ip_address)
     ) $charset_collate;";
     
-    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-    dbDelta($sql);
-    echo "<p>Device tracking table created successfully.</p>\n";
-}
-
-if (!$device_events_exists) {
-    echo "<p>Creating device_events table...</p>\n";
-    $charset_collate = $wpdb->get_charset_collate();
-    $sql = "CREATE TABLE $device_events_table (
+    // Device events table
+    $device_events_table = $wpdb->prefix . 'device_events';
+    $events_sql = "CREATE TABLE IF NOT EXISTS $device_events_table (
         id bigint(20) NOT NULL AUTO_INCREMENT,
         session_id varchar(255) NOT NULL,
         event_type varchar(100) NOT NULL,
@@ -98,15 +97,9 @@ if (!$device_events_exists) {
         KEY timestamp (timestamp)
     ) $charset_collate;";
     
-    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-    dbDelta($sql);
-    echo "<p>Device events table created successfully.</p>\n";
-}
-
-if (!$server_events_exists) {
-    echo "<p>Creating server_events table...</p>\n";
-    $charset_collate = $wpdb->get_charset_collate();
-    $sql = "CREATE TABLE $server_events_table (
+    // Server events table
+    $server_events_table = $wpdb->prefix . 'server_events';
+    $server_sql = "CREATE TABLE IF NOT EXISTS $server_events_table (
         id bigint(20) NOT NULL AUTO_INCREMENT,
         session_id varchar(255) NOT NULL,
         event_name varchar(255) NOT NULL,
@@ -126,15 +119,14 @@ if (!$server_events_exists) {
     ) $charset_collate;";
     
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-    dbDelta($sql);
-    echo "<p>Server events table created successfully.</p>\n";
-}
-
-// Add missing columns to device_tracking if needed
-if ($device_tracking_exists) {
-    echo "<p>Checking for missing columns in device_tracking table...</p>\n";
     
-    $columns_to_check = array(
+    // Create tables
+    dbDelta($device_sql);
+    dbDelta($events_sql);
+    dbDelta($server_sql);
+    
+    // Add missing columns if they don't exist
+    $columns_to_add = array(
         'language' => 'VARCHAR(50) DEFAULT NULL',
         'timezone' => 'VARCHAR(100) DEFAULT NULL',
         'connection_type' => 'VARCHAR(50) DEFAULT NULL',
@@ -145,185 +137,344 @@ if ($device_tracking_exists) {
         'touchscreen_detected' => 'TINYINT(1) DEFAULT NULL'
     );
     
-    foreach ($columns_to_check as $column => $definition) {
-        $column_exists = $wpdb->get_var("SHOW COLUMNS FROM $device_tracking_table LIKE '$column'");
-        if (!$column_exists) {
-            echo "<p>Adding column: $column</p>\n";
+    foreach ($columns_to_add as $column => $definition) {
+        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $device_tracking_table LIKE '$column'");
+        if (empty($column_exists)) {
             $wpdb->query("ALTER TABLE $device_tracking_table ADD COLUMN $column $definition");
         }
     }
 }
+add_action('init', 'alhadiya_force_create_tables');
 
-// 2. Fix WordPress Cron Issues
-echo "<h2>2. Fixing WordPress Cron Issues</h2>\n";
+// ========================================
+// FIX 3: IMPROVE SESSION MANAGEMENT
+// ========================================
 
-// Clear problematic cron events
-$cron_option = get_option('cron');
-if ($cron_option && is_array($cron_option)) {
-    $problematic_hooks = array('action_scheduler_run_queue', 'alhadiya_batch_process_events');
-    
-    foreach ($problematic_hooks as $hook) {
-        if (isset($cron_option[$hook])) {
-            unset($cron_option[$hook]);
-            echo "<p>Removed problematic cron hook: $hook</p>\n";
+// Enhanced session initialization
+function alhadiya_enhanced_session_init() {
+    // Check if we already have a session ID
+    if (isset($_COOKIE['device_session'])) {
+        $session_id = sanitize_text_field($_COOKIE['device_session']);
+        
+        // Validate session ID format
+        if (preg_match('/^(session_|ss_)/', $session_id)) {
+            return $session_id;
         }
     }
     
-    update_option('cron', $cron_option);
-    echo "<p>Cron events cleaned up.</p>\n";
-}
-
-// 3. Fix Session Management
-echo "<h2>3. Fixing Session Management</h2>\n";
-
-// Ensure WooCommerce session is properly initialized
-if (class_exists('WooCommerce')) {
-    echo "<p>WooCommerce detected. Ensuring proper session initialization...</p>\n";
+    // Generate new session ID
+    $session_id = 'session_' . uniqid() . '_' . time();
     
-    // Test session creation
-    try {
-        if (!WC()->session) {
-            WC()->session = new WC_Session_Handler();
-        }
-        
-        $test_session_id = 'test_' . uniqid() . '_' . time();
-        WC()->session->set('alhadiya_test_session', $test_session_id);
-        $retrieved = WC()->session->get('alhadiya_test_session');
-        
-        if ($retrieved === $test_session_id) {
-            echo "<p>WooCommerce session working correctly.</p>\n";
-        } else {
-            echo "<p>WooCommerce session test failed.</p>\n";
-        }
-    } catch (Exception $e) {
-        echo "<p>WooCommerce session error: " . $e->getMessage() . "</p>\n";
+    // Set cookie
+    $cookie_domain = parse_url(get_site_url(), PHP_URL_HOST);
+    setcookie('device_session', $session_id, time() + (86400 * 30), '/', $cookie_domain, is_ssl(), false);
+    
+    return $session_id;
+}
+
+// ========================================
+// FIX 4: IMPROVE DEVICE TRACKING
+// ========================================
+
+// Enhanced device tracking function
+function alhadiya_enhanced_device_tracking() {
+    if (!get_theme_mod('enable_device_tracking', true)) {
+        return false;
     }
-} else {
-    echo "<p>WooCommerce not detected. Using PHP sessions.</p>\n";
+    
+    global $wpdb;
+    
+    $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field($_SERVER['HTTP_USER_AGENT']) : '';
+    $ip = get_client_ip();
+    $referrer = isset($_SERVER['HTTP_REFERER']) ? sanitize_text_field($_SERVER['HTTP_REFERER']) : '';
+    
+    // Get session ID
+    $session_id = alhadiya_enhanced_session_init();
+    
+    // Parse user agent
+    $device_info = parse_user_agent($user_agent);
+    
+    // Get location and ISP
+    $location_data = get_location_and_isp($ip);
+    
+    $table_name = $wpdb->prefix . 'device_tracking';
+    
+    // Check if session exists
+    $existing = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM $table_name WHERE session_id = %s",
+        $session_id
+    ));
+    
+    if ($existing) {
+        // Update existing record
+        $wpdb->update(
+            $table_name,
+            array(
+                'visit_count' => $existing->visit_count + 1,
+                'pages_viewed' => $existing->pages_viewed + 1,
+                'last_visit' => current_time('mysql')
+            ),
+            array('session_id' => $session_id)
+        );
+    } else {
+        // Insert new record
+        $wpdb->insert(
+            $table_name,
+            array(
+                'session_id' => $session_id,
+                'ip_address' => $ip,
+                'user_agent' => $user_agent,
+                'device_type' => $device_info['device_type'],
+                'device_model' => $device_info['device_model'],
+                'browser' => $device_info['browser'],
+                'os' => $device_info['os'],
+                'location' => $location_data['location'],
+                'isp' => $location_data['isp'],
+                'referrer' => $referrer,
+                'facebook_id' => '',
+                'first_visit' => current_time('mysql'),
+                'last_visit' => current_time('mysql')
+            )
+        );
+    }
+    
+    return array(
+        'session_id' => $session_id,
+        'ip' => $ip,
+        'user_agent' => $user_agent,
+        'device_info' => $device_info,
+        'location_data' => $location_data,
+        'referrer' => $referrer,
+        'facebook_id' => '',
+        'timestamp' => current_time('mysql')
+    );
 }
 
-// 4. Fix AJAX Nonce Issues
-echo "<h2>4. Fixing AJAX Nonce Issues</h2>\n";
+// ========================================
+// FIX 5: IMPROVE AJAX HANDLERS
+// ========================================
 
-// Test nonce creation
-$test_nonce = wp_create_nonce('alhadiya_server_event_nonce');
-if ($test_nonce) {
-    echo "<p>Nonce creation working correctly.</p>\n";
-} else {
-    echo "<p>Nonce creation failed.</p>\n";
-}
-
-// 5. Clear Transients and Cache
-echo "<h2>5. Clearing Cache and Transients</h2>\n";
-
-// Clear WordPress transients
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_%'");
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_%'");
-echo "<p>WordPress transients cleared.</p>\n";
-
-// Clear any caching plugins if they exist
-if (function_exists('wp_cache_flush')) {
-    wp_cache_flush();
-    echo "<p>Object cache flushed.</p>\n";
-}
-
-// 6. Test Database Connections
-echo "<h2>6. Testing Database Connections</h2>\n";
-
-// Test basic database operations
-$test_result = $wpdb->get_var("SELECT 1");
-if ($test_result == '1') {
-    echo "<p>Database connection working correctly.</p>\n";
-} else {
-    echo "<p>Database connection failed.</p>\n";
-}
-
-// Test table operations
-if ($device_tracking_exists) {
-    $test_insert = $wpdb->insert(
-        $device_tracking_table,
+// Enhanced server event handler
+function alhadiya_enhanced_server_event_handler() {
+    if (!isset($_POST['server_event_nonce']) || !wp_verify_nonce($_POST['server_event_nonce'], 'alhadiya_server_event_nonce')) {
+        wp_send_json_error('Security check failed');
+        return;
+    }
+    
+    $event_name = isset($_POST['event_name']) ? sanitize_text_field($_POST['event_name']) : '';
+    $event_data = isset($_POST['event_data']) ? $_POST['event_data'] : array();
+    $event_value = isset($_POST['event_value']) ? sanitize_text_field($_POST['event_value']) : '';
+    
+    if (empty($event_name)) {
+        wp_send_json_error('Event name is required');
+        return;
+    }
+    
+    // Get session ID
+    $session_id = alhadiya_enhanced_session_init();
+    
+    // Log to server events table
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'server_events';
+    
+    $result = $wpdb->insert(
+        $table_name,
         array(
-            'session_id' => 'test_session_' . time(),
-            'ip_address' => '127.0.0.1',
-            'user_agent' => 'Test User Agent',
-            'device_type' => 'Desktop',
-            'browser' => 'Test Browser',
-            'os' => 'Test OS',
-            'location' => 'Test Location',
-            'isp' => 'Test ISP'
+            'session_id' => $session_id,
+            'event_name' => $event_name,
+            'event_data' => json_encode($event_data),
+            'event_value' => $event_value,
+            'user_ip' => get_client_ip(),
+            'user_agent' => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field($_SERVER['HTTP_USER_AGENT']) : '',
+            'referrer' => isset($_SERVER['HTTP_REFERER']) ? sanitize_text_field($_SERVER['HTTP_REFERER']) : '',
+            'page_url' => (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]",
+            'timestamp' => current_time('mysql')
         )
     );
     
-    if ($test_insert !== false) {
-        echo "<p>Database insert test successful.</p>\n";
-        // Clean up test data
-        $wpdb->query("DELETE FROM $device_tracking_table WHERE session_id LIKE 'test_session_%'");
+    if ($result) {
+        wp_send_json_success('Event logged successfully');
     } else {
-        echo "<p>Database insert test failed: " . $wpdb->last_error . "</p>\n";
+        wp_send_json_error('Failed to log event');
     }
 }
 
-// 7. Fix File Permissions (if possible)
-echo "<h2>7. Checking File Permissions</h2>\n";
+// Remove old handler and add new one
+remove_action('wp_ajax_alhadiya_server_event', 'alhadiya_handle_server_event');
+remove_action('wp_ajax_nopriv_alhadiya_server_event', 'alhadiya_handle_server_event');
+add_action('wp_ajax_alhadiya_server_event', 'alhadiya_enhanced_server_event_handler');
+add_action('wp_ajax_nopriv_alhadiya_server_event', 'alhadiya_enhanced_server_event_handler');
 
-$theme_dir = get_template_directory();
-if (is_readable($theme_dir)) {
-    echo "<p>Theme directory is readable.</p>\n";
-} else {
-    echo "<p>Warning: Theme directory is not readable.</p>\n";
+// ========================================
+// FIX 6: ADD MISSING HELPER FUNCTIONS
+// ========================================
+
+// Get client IP function
+if (!function_exists('get_client_ip')) {
+    function get_client_ip() {
+        $ip_keys = array('HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_FORWARDED', 'HTTP_X_CLUSTER_CLIENT_IP', 'HTTP_FORWARDED_FOR', 'HTTP_FORWARDED', 'REMOTE_ADDR');
+        
+        foreach ($ip_keys as $key) {
+            if (array_key_exists($key, $_SERVER) === true) {
+                foreach (explode(',', $_SERVER[$key]) as $ip) {
+                    $ip = trim($ip);
+                    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
+                        return $ip;
+                    }
+                }
+            }
+        }
+        
+        return isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
+    }
 }
 
-if (is_writable($theme_dir)) {
-    echo "<p>Theme directory is writable.</p>\n";
-} else {
-    echo "<p>Warning: Theme directory is not writable.</p>\n";
+// Parse user agent function
+if (!function_exists('parse_user_agent')) {
+    function parse_user_agent($user_agent) {
+        $device_type = 'Desktop';
+        $device_model = 'Unknown';
+        $browser = 'Unknown';
+        $os = 'Unknown';
+        
+        if (preg_match('/Mobile|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone/i', $user_agent)) {
+            $device_type = 'Mobile';
+            
+            if (preg_match('/iPhone/i', $user_agent)) {
+                $device_model = 'iPhone';
+                if (preg_match('/iPhone OS ([0-9_]+)/i', $user_agent, $matches)) {
+                    $os = 'iOS ' . str_replace('_', '.', $matches[1]);
+                }
+            } elseif (preg_match('/iPad/i', $user_agent)) {
+                $device_model = 'iPad';
+                $device_type = 'Tablet';
+            } elseif (preg_match('/Android/i', $user_agent)) {
+                $device_model = 'Android Device';
+                if (preg_match('/Android ([0-9.]+)/i', $user_agent, $matches)) {
+                    $os = 'Android ' . $matches[1];
+                }
+            }
+        }
+        
+        if (preg_match('/Chrome/i', $user_agent)) {
+            $browser = 'Chrome';
+        } elseif (preg_match('/Firefox/i', $user_agent)) {
+            $browser = 'Firefox';
+        } elseif (preg_match('/Safari/i', $user_agent)) {
+            $browser = 'Safari';
+        } elseif (preg_match('/Edge/i', $user_agent)) {
+            $browser = 'Edge';
+        }
+        
+        if ($device_type == 'Desktop') {
+            if (preg_match('/Windows NT ([0-9.]+)/i', $user_agent, $matches)) {
+                $os = 'Windows ' . $matches[1];
+            } elseif (preg_match('/Mac OS X ([0-9_]+)/i', $user_agent, $matches)) {
+                $os = 'macOS ' . str_replace('_', '.', $matches[1]);
+            } elseif (preg_match('/Linux/i', $user_agent)) {
+                $os = 'Linux';
+            }
+        }
+        
+        return array(
+            'device_type' => $device_type,
+            'device_model' => $device_model,
+            'browser' => $browser,
+            'os' => $os
+        );
+    }
 }
 
-// 8. Test AJAX Endpoints
-echo "<h2>8. Testing AJAX Endpoints</h2>\n";
-
-// Test if AJAX endpoints are accessible
-$ajax_url = admin_url('admin-ajax.php');
-echo "<p>AJAX URL: $ajax_url</p>\n";
-
-// 9. Final Status Check
-echo "<h2>9. Final Status Check</h2>\n";
-
-$all_tables_exist = $device_tracking_exists && $device_events_exists && $server_events_exists;
-$woocommerce_active = class_exists('WooCommerce');
-$nonce_working = !empty($test_nonce);
-$database_working = ($test_result == '1');
-
-echo "<div style='background: #f0f0f0; padding: 20px; border-radius: 5px; margin: 20px 0;'>\n";
-echo "<h3>System Status:</h3>\n";
-echo "<ul>\n";
-echo "<li>Database Tables: " . ($all_tables_exist ? '✅ OK' : '❌ Missing') . "</li>\n";
-echo "<li>WooCommerce: " . ($woocommerce_active ? '✅ Active' : '❌ Not Active') . "</li>\n";
-echo "<li>Nonce System: " . ($nonce_working ? '✅ Working' : '❌ Failed') . "</li>\n";
-echo "<li>Database: " . ($database_working ? '✅ Working' : '❌ Failed') . "</li>\n";
-echo "</ul>\n";
-echo "</div>\n";
-
-if ($all_tables_exist && $nonce_working && $database_working) {
-    echo "<div style='background: #d4edda; color: #155724; padding: 20px; border-radius: 5px; margin: 20px 0;'>\n";
-    echo "<h3>✅ All Critical Systems Working!</h3>\n";
-    echo "<p>The tracking system should now work correctly. Please test the website functionality.</p>\n";
-    echo "</div>\n";
-} else {
-    echo "<div style='background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 20px 0;'>\n";
-    echo "<h3>❌ Some Issues Remain</h3>\n";
-    echo "<p>Please check the specific issues above and resolve them manually.</p>\n";
-    echo "</div>\n";
+// Get location and ISP function
+if (!function_exists('get_location_and_isp')) {
+    function get_location_and_isp($ip) {
+        $location = 'Unknown';
+        $isp = 'Unknown';
+        
+        $services = array(
+            "http://ipapi.co/{$ip}/json/",
+            "http://ip-api.com/json/{$ip}",
+            "https://ipinfo.io/{$ip}/json"
+        );
+        
+        foreach ($services as $service) {
+            $response = wp_remote_get($service, array('timeout' => 5));
+            
+            if (!is_wp_error($response)) {
+                $body = wp_remote_retrieve_body($response);
+                $data = json_decode($body, true);
+                
+                if ($data) {
+                    if (isset($data['city']) && isset($data['country'])) {
+                        $location = $data['city'] . ', ' . $data['country'];
+                    }
+                    if (isset($data['org'])) {
+                        $isp = $data['org'];
+                    } elseif (isset($data['isp'])) {
+                        $isp = $data['isp'];
+                    }
+                    break;
+                }
+            }
+        }
+        
+        return array(
+            'location' => $location,
+            'isp' => $isp
+        );
+    }
 }
 
-echo "<h2>10. Next Steps</h2>\n";
-echo "<ol>\n";
-echo "<li>Clear your browser cache and cookies</li>\n";
-echo "<li>Test the website functionality</li>\n";
-echo "<li>Check the browser console for any JavaScript errors</li>\n";
-echo "<li>Monitor the WordPress error logs</li>\n";
-echo "<li>Test the tracking system in the admin panel</li>\n";
-echo "</ol>\n";
+// ========================================
+// FIX 7: REPLACE TRACKING FUNCTIONS
+// ========================================
 
-echo "<p><strong>Fix script completed!</strong></p>\n";
+// Replace the main tracking function
+function alhadiya_replace_tracking_function() {
+    return alhadiya_enhanced_device_tracking();
+}
+
+// Hook the replacement
+add_action('wp', function() {
+    if (!is_admin() && get_theme_mod('enable_device_tracking', true)) {
+        alhadiya_replace_tracking_function();
+    }
+});
+
+// ========================================
+// FIX 8: ADD DEBUGGING
+// ========================================
+
+// Add debugging function
+function alhadiya_debug_tracking() {
+    if (current_user_can('manage_options')) {
+        error_log('Alhadiya Tracking Debug: Session ID = ' . alhadiya_enhanced_session_init());
+        error_log('Alhadiya Tracking Debug: Device tracking enabled = ' . (get_theme_mod('enable_device_tracking', true) ? 'true' : 'false'));
+    }
+}
+add_action('init', 'alhadiya_debug_tracking');
+
+// ========================================
+// FIX 9: ENSURE COMPATIBILITY
+// ========================================
+
+// Ensure compatibility with existing code
+function alhadiya_ensure_compatibility() {
+    // Make sure track_enhanced_device_info function exists
+    if (!function_exists('track_enhanced_device_info')) {
+        function track_enhanced_device_info() {
+            return alhadiya_enhanced_device_tracking();
+        }
+    }
+    
+    // Make sure alhadiya_init_server_session function exists
+    if (!function_exists('alhadiya_init_server_session')) {
+        function alhadiya_init_server_session() {
+            return alhadiya_enhanced_session_init();
+        }
+    }
+}
+add_action('init', 'alhadiya_ensure_compatibility');
+
+echo "Comprehensive fix script loaded successfully!";
 ?>

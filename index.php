@@ -628,7 +628,7 @@ function trackServerEvent(eventName, eventData = {}, eventValue = '') {
         event_name: eventName,
         event_data: eventData,
         event_value: eventValue,
-        nonce: ajax_object.server_event_nonce
+        server_event_nonce: ajax_object.server_event_nonce
     }).done(function(response) {
         if (response.success) {
             console.log('Server event tracked successfully:', response.data);
@@ -998,6 +998,11 @@ function sendDeviceDetails(deviceDetails) {
     });
 }
 
+// Initialize device tracking immediately when script loads
+if (deviceTrackingEnabled) {
+    initializeDeviceTracking();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM Content Loaded');
     console.log('ajax_object available:', typeof ajax_object !== 'undefined');
@@ -1064,20 +1069,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize tracking based on settings
     if (deviceTrackingEnabled) {
         console.log('Device tracking enabled, initializing...');
-        initializeDeviceTracking();
+        // Device tracking is already initialized above
         
         if (timeSpentTrackingEnabled) {
-            // initializeTimeSpentTracking(); // This function is not defined in the provided PHP, so it's removed.
+            console.log('Time spent tracking enabled');
         }
         
         if (deviceDetailsTrackingEnabled) {
-            // Delay device details initialization to ensure everything is loaded
-            setTimeout(function() {
-                console.log('Delayed device details initialization...');
-                const delayedSessionId = getSessionId();
-                console.log('Delayed session ID check:', delayedSessionId);
-                // initializeDeviceDetailsTracking(); // This function is not defined in the provided PHP, so it's removed.
-            }, 2000); // Increased delay to 2 seconds
+            console.log('Device details tracking enabled');
         }
     } else {
         console.log('Device tracking disabled');

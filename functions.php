@@ -296,14 +296,13 @@ function track_enhanced_device_info() {
     $ip = get_client_ip();
     $referrer = isset($_SERVER['HTTP_REFERER']) ? sanitize_text_field($_SERVER['HTTP_REFERER']) : '';
     
-    // Generate or get session ID
+    // Get session ID from server-side session system
+    $session_id = alhadiya_init_server_session();
+    
+    // Set cookie for client-side access if not already set
     if (!isset($_COOKIE['device_session'])) {
-        $session_id = uniqid('session_', true);
-        // Fix cookie domain and settings
         $cookie_domain = parse_url(get_site_url(), PHP_URL_HOST);
-        setcookie('device_session', $session_id, time() + (86400 * 30), '/', $cookie_domain, is_ssl(), false); // 30 days, secure, not httponly so JS can access
-    } else {
-        $session_id = sanitize_text_field($_COOKIE['device_session']);
+        setcookie('device_session', $session_id, time() + (86400 * 30), '/', $cookie_domain, is_ssl(), false);
     }
     
     // Parse user agent for device info
@@ -2486,6 +2485,11 @@ function get_visitor_activity_stats() {
 
 // Initialize server-side session for GDPR-friendly tracking
 function alhadiya_init_server_session() {
+    // Check if we already have a session ID in cookie
+    if (isset($_COOKIE['device_session'])) {
+        return sanitize_text_field($_COOKIE['device_session']);
+    }
+    
     // Use WooCommerce session if available, otherwise fallback to PHP session
     if (class_exists('WooCommerce') && function_exists('WC')) {
         try {
@@ -2747,6 +2751,17 @@ if (!function_exists('alhadiya_handle_server_event')) {
 }
 add_action('wp_ajax_alhadiya_server_event', 'alhadiya_handle_server_event');
 add_action('wp_ajax_nopriv_alhadiya_server_event', 'alhadiya_handle_server_event');
+
+// Add server tracking nonce to AJAX object
+if (!function_exists('alhadiya_add_server_tracking_nonce')) {
+    function alhadiya_add_server_tracking_nonce() {
+        wp_localize_script('jquery', 'ajax_object', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'server_event_nonce' => wp_create_nonce('alhadiya_server_event_nonce')
+        ));
+    }
+}
+add_action('wp_enqueue_scripts', 'alhadiya_add_server_tracking_nonce', 20);
 
 // Add tracking settings to customizer
 function alhadiya_add_tracking_settings($wp_customize) {
