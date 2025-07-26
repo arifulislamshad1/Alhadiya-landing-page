@@ -2811,17 +2811,6 @@ function alhadiya_add_tracking_settings($wp_customize) {
     ));
 }
 
-// Add server tracking nonce to wp_localize_script
-function alhadiya_add_server_tracking_nonce() {
-    // Add to existing wp_localize_script
-    $existing_ajax_object = wp_scripts()->get_data('jquery', 'data');
-    if ($existing_ajax_object) {
-        $ajax_object = json_decode($existing_ajax_object, true);
-        $ajax_object['server_event_nonce'] = wp_create_nonce('alhadiya_server_event_nonce');
-        wp_scripts()->add_data('jquery', 'data', json_encode($ajax_object));
-    }
-}
-
 // Initialize server-side tracking
 function alhadiya_init_server_tracking() {
     // Create server events table
@@ -2856,9 +2845,6 @@ if (class_exists('WooCommerce')) {
 
 // Add tracking settings to customizer
 add_action('customize_register', 'alhadiya_add_tracking_settings');
-
-// Add server tracking nonce
-add_action('wp_enqueue_scripts', 'alhadiya_add_server_tracking_nonce', 20);
 
 // ========================================
 // HIGH-TRAFFIC OPTIMIZATION
@@ -3316,13 +3302,3 @@ function alhadiya_server_events_dashboard() {
     </style>
     <?php
 }
-
-// ================= AJAX Nonce Fix =================
-// Add server tracking nonce to wp_localize_script
-function alhadiya_add_server_tracking_nonce() {
-    wp_localize_script('jquery', 'ajax_object', array(
-        'ajax_url' => admin_url('admin-ajax.php'),
-        'server_event_nonce' => wp_create_nonce('alhadiya_server_event_nonce')
-    ));
-}
-add_action('wp_enqueue_scripts', 'alhadiya_add_server_tracking_nonce', 20);
