@@ -2724,15 +2724,19 @@ if (!function_exists('alhadiya_handle_server_event')) {
             wp_send_json_error('Security check failed');
             return;
         }
+        
         $event_name = isset($_POST['event_name']) ? sanitize_text_field($_POST['event_name']) : '';
         $event_data = isset($_POST['event_data']) ? $_POST['event_data'] : array();
         $event_value = isset($_POST['event_value']) ? sanitize_text_field($_POST['event_value']) : '';
+        
         if (empty($event_name)) {
             wp_send_json_error('Event name is required');
             return;
         }
+        
         // Log the event
         $result = alhadiya_log_server_event($event_name, $event_data, $event_value);
+        
         if ($result) {
             wp_send_json_success('Event logged successfully');
         } else {

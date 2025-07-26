@@ -1036,6 +1036,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const swiperContainer = document.querySelector('.reviewSwiper');
     if (swiperContainer) {
         const slidesCount = swiperContainer.querySelectorAll('.swiper-slide').length;
+        console.log('Swiper slides count:', slidesCount);
+        
         const swiper = new Swiper('.reviewSwiper', {
             slidesPerView: 1,
             spaceBetween: 20,
@@ -1054,6 +1056,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 prevEl: '.swiper-button-prev',
             },
         });
+        
+        // Store swiper instance globally for event tracking
+        window.reviewSwiper = swiper;
     }
     
     // Initialize tracking based on settings
@@ -1083,8 +1088,8 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Custom events tracking enabled');
         
         // Track Swiper interactions
-        if (typeof swiper !== 'undefined' && swiper) {
-            swiper.on('slideChange', function () {
+        if (typeof window.reviewSwiper !== 'undefined' && window.reviewSwiper) {
+            window.reviewSwiper.on('slideChange', function () {
                 trackUniversalEvent('swiper_slide_change', {
                     slide_index: this.realIndex + 1,
                     total_slides: this.slides.length
