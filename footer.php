@@ -149,12 +149,41 @@
 <script type="text/javascript">
 // Simple device tracking initialization - GitHub first version style
 jQuery(document).ready(function($) {
-    console.log('Device tracking script loaded');
+    console.log('Device tracking script loaded for Bangladesh users');
+    
+    // Disable cookie consent popups for Bangladesh users
+    function disableCookiePopups() {
+        // Hide all common cookie consent elements
+        const cookieSelectors = [
+            '[class*="cookie"]', '[id*="cookie"]', '[class*="gdpr"]', '[id*="gdpr"]',
+            '[class*="consent"]', '[id*="consent"]', '[class*="privacy"]', '[id*="privacy"]',
+            '.cookie-notice', '.cookie-consent', '.gdpr-notice', '.privacy-notice',
+            '.cc-window', '.cc-banner', '.moove-gdpr-info-bar', '.cli-bar-container',
+            '#cookie-law-info-bar', '#cookie-notice', '.cookiebot-popup',
+            '.wpcookienotice', '.cookie-law-info-bar', '.gdpr-cookie-notice'
+        ];
+        
+        cookieSelectors.forEach(function(selector) {
+            $(selector).hide().remove();
+        });
+        
+        // Set cookie consent flags to prevent popups
+        localStorage.setItem('cookie-consent', 'accepted');
+        localStorage.setItem('gdpr-consent', 'accepted');
+        document.cookie = 'cookie-consent=accepted; path=/; max-age=31536000';
+        document.cookie = 'gdpr-consent=accepted; path=/; max-age=31536000';
+        
+        console.log('Cookie consent disabled for Bangladesh users');
+    }
+    
+    // Run immediately and periodically
+    disableCookiePopups();
+    setInterval(disableCookiePopups, 1000); // Check every second
     
     // Check if main tracker is working
     setTimeout(function() {
         if (typeof deviceTracker !== 'undefined' && deviceTracker.isTracking) {
-            console.log('Device tracker is working correctly');
+            console.log('Device tracker is working correctly for Bangladesh users');
         } else {
             console.log('Device tracker fallback mode');
             // Simple fallback tracking

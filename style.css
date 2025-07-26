@@ -1944,6 +1944,32 @@ img.lazy.loaded {
   }
 }
 
+/* ===== HIDE COOKIE CONSENT POPUPS FOR BANGLADESH USERS ===== */
+/* All users are Bangladeshi, no GDPR compliance needed */
+[class*="cookie"], [id*="cookie"], [class*="gdpr"], [id*="gdpr"], 
+[class*="consent"], [id*="consent"], [class*="privacy"], [id*="privacy"],
+.cookie-notice, .cookie-consent, .gdpr-notice, .privacy-notice,
+.cc-window, .cc-banner, .moove-gdpr-info-bar, .cli-bar-container,
+#cookie-law-info-bar, #cookie-notice, .cookiebot-popup,
+.wpcookienotice, .cookie-law-info-bar, .gdpr-cookie-notice {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+    position: absolute !important;
+    left: -9999px !important;
+    top: -9999px !important;
+    z-index: -1 !important;
+}
+
+/* Hide any overlay or backdrop for cookie popups */
+[class*="cookie"] + .overlay, [class*="gdpr"] + .overlay,
+.cookie-overlay, .gdpr-overlay, .consent-overlay, .modal-backdrop {
+    display: none !important;
+}
+
 /* ===== FLOATING WHATSAPP/PHONE BUTTONS - NO LAYOUT IMPACT ===== */
 .alhadiya-floating-buttons {
     position: fixed;

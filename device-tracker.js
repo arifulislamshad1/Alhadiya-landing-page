@@ -6,7 +6,7 @@
 (function($) {
     'use strict';
     
-    // Simple global tracker object
+    // Simple global tracker object with enable/disable options
     window.deviceTracker = {
         sessionId: null,
         isTracking: false,
@@ -17,6 +17,20 @@
             keypressCount: 0,
             lastKeyPressed: '',
             timeSpent: 0
+        },
+        // Event tracking enable/disable options
+        trackingOptions: {
+            enablePageView: true,
+            enableScrollTracking: true,
+            enableClickTracking: true,
+            enableKeypressTracking: true,
+            enableSectionTracking: true,
+            enableButtonTracking: true,
+            enablePaymentTracking: true,
+            enableBatteryTracking: true,
+            enableConnectionTracking: true,
+            enableActivitySummary: true,
+            enableDeviceInfo: true
         }
     };
 
@@ -26,9 +40,16 @@
     });
 
     /**
-     * Initialize device tracking
+     * Initialize device tracking with options from server
      */
     function initializeDeviceTracker() {
+        // Load tracking options from server (for Bangladesh users, no cookie consent needed)
+        if (typeof ajax_object !== 'undefined' && ajax_object.tracking_options) {
+            // Update tracking options from admin settings
+            Object.assign(deviceTracker.trackingOptions, ajax_object.tracking_options);
+            console.log('Tracking options loaded for Bangladesh users (no cookie consent):', deviceTracker.trackingOptions);
+        }
+        
         // Generate session ID
         deviceTracker.sessionId = generateSessionId();
         
@@ -47,7 +68,7 @@
         // Send page view event
         trackEvent('page_view', 'Page Load', window.location.href);
         
-        console.log('Device Tracker initialized successfully');
+        console.log('Device Tracker initialized successfully for Bangladesh users');
     }
 
     /**
@@ -345,10 +366,31 @@
     }
 
     /**
-     * Track custom event
+     * Track custom event with enable/disable check
      */
     function trackEvent(eventType, eventName, eventValue) {
         if (typeof ajax_object === 'undefined') return;
+        
+        // Check if this event type is enabled
+        const eventTypeMap = {
+            'page_view': 'enablePageView',
+            'scroll_depth': 'enableScrollTracking',
+            'click_position': 'enableClickTracking',
+            'key_press': 'enableKeypressTracking',
+            'section_view': 'enableSectionTracking',
+            'button_click': 'enableButtonTracking',
+            'payment_method_select': 'enablePaymentTracking',
+            'battery_info': 'enableBatteryTracking',
+            'connection_info': 'enableConnectionTracking',
+            'activity_summary': 'enableActivitySummary',
+            'device_info': 'enableDeviceInfo'
+        };
+        
+        const optionKey = eventTypeMap[eventType];
+        if (optionKey && !deviceTracker.trackingOptions[optionKey]) {
+            console.log('Event disabled: ' + eventType);
+            return; // Skip tracking if disabled
+        }
 
         const data = {
             action: 'track_custom_event',
@@ -368,7 +410,72 @@
             });
     }
 
-    // Make trackEvent available globally for manual tracking
+    // Global functions for tracking control
     window.trackEvent = trackEvent;
+    
+    // Enable/Disable specific event types
+    window.enableEventTracking = function(eventType) {
+        const eventTypeMap = {
+            'page_view': 'enablePageView',
+            'scroll': 'enableScrollTracking',
+            'click': 'enableClickTracking',
+            'keypress': 'enableKeypressTracking',
+            'section': 'enableSectionTracking',
+            'button': 'enableButtonTracking',
+            'payment': 'enablePaymentTracking',
+            'battery': 'enableBatteryTracking',
+            'connection': 'enableConnectionTracking',
+            'activity': 'enableActivitySummary',
+            'device': 'enableDeviceInfo'
+        };
+        
+        const optionKey = eventTypeMap[eventType];
+        if (optionKey) {
+            deviceTracker.trackingOptions[optionKey] = true;
+            console.log('Enabled tracking for: ' + eventType);
+        }
+    };
+    
+    window.disableEventTracking = function(eventType) {
+        const eventTypeMap = {
+            'page_view': 'enablePageView',
+            'scroll': 'enableScrollTracking',
+            'click': 'enableClickTracking',
+            'keypress': 'enableKeypressTracking',
+            'section': 'enableSectionTracking',
+            'button': 'enableButtonTracking',
+            'payment': 'enablePaymentTracking',
+            'battery': 'enableBatteryTracking',
+            'connection': 'enableConnectionTracking',
+            'activity': 'enableActivitySummary',
+            'device': 'enableDeviceInfo'
+        };
+        
+        const optionKey = eventTypeMap[eventType];
+        if (optionKey) {
+            deviceTracker.trackingOptions[optionKey] = false;
+            console.log('Disabled tracking for: ' + eventType);
+        }
+    };
+    
+    // Enable/Disable all tracking
+    window.enableAllTracking = function() {
+        Object.keys(deviceTracker.trackingOptions).forEach(function(key) {
+            deviceTracker.trackingOptions[key] = true;
+        });
+        console.log('All tracking enabled');
+    };
+    
+    window.disableAllTracking = function() {
+        Object.keys(deviceTracker.trackingOptions).forEach(function(key) {
+            deviceTracker.trackingOptions[key] = false;
+        });
+        console.log('All tracking disabled');
+    };
+    
+    // Get current tracking status
+    window.getTrackingStatus = function() {
+        return deviceTracker.trackingOptions;
+    };
 
 })(jQuery);

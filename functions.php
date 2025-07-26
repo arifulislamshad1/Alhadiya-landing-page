@@ -54,7 +54,7 @@ function alhadiya_scripts() {
     // Enqueue comprehensive device tracking script
     wp_enqueue_script('device-tracker', get_template_directory_uri() . '/device-tracker.js', array('jquery'), wp_get_theme()->get('Version'), true);
     
-    // Localize script for AJAX
+    // Localize script for AJAX with tracking options for Bangladesh users
     wp_localize_script('jquery', 'ajax_object', array(
         'ajax_url' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('alhadiya_nonce'),
@@ -66,7 +66,23 @@ function alhadiya_scripts() {
         'event_nonce' => wp_create_nonce('alhadiya_event_nonce'), // New nonce for custom events
         'screen_size_nonce' => wp_create_nonce('alhadiya_screen_size_nonce'), // New nonce for screen size
         'track_nonce' => wp_create_nonce('alhadiya_track_nonce'), // Nonce for high-performance tracking
-        'tracking_endpoint' => home_url('/?alhadiya_track=1') // High-performance tracking endpoint
+        'tracking_endpoint' => home_url('/?alhadiya_track=1'), // High-performance tracking endpoint
+        // Tracking options for Bangladesh users (no cookie consent needed)
+        'tracking_options' => array(
+            'enablePageView' => get_option('alhadiya_enable_page_view', true),
+            'enableScrollTracking' => get_option('alhadiya_enable_scroll', true),
+            'enableClickTracking' => get_option('alhadiya_enable_click', true),
+            'enableKeypressTracking' => get_option('alhadiya_enable_keypress', true),
+            'enableSectionTracking' => get_option('alhadiya_enable_section', true),
+            'enableButtonTracking' => get_option('alhadiya_enable_button', true),
+            'enablePaymentTracking' => get_option('alhadiya_enable_payment', true),
+            'enableBatteryTracking' => get_option('alhadiya_enable_battery', true),
+            'enableConnectionTracking' => get_option('alhadiya_enable_connection', true),
+            'enableActivitySummary' => get_option('alhadiya_enable_activity', true),
+            'enableDeviceInfo' => get_option('alhadiya_enable_device', true),
+            'bangladesh_users_only' => true, // All users are Bangladeshi, no GDPR
+            'no_cookie_consent' => true // Disable cookie consent popup
+        )
     ));
 }
 add_action('wp_enqueue_scripts', 'alhadiya_scripts');
@@ -1763,7 +1779,7 @@ function populate_custom_order_columns($column, $post_id) {
     }
 }
 
-// Enhanced Admin menu for device tracking
+// Enhanced Admin menu for device tracking with settings
 function add_enhanced_device_tracking_menu() {
     add_menu_page(
         'Enhanced Device Tracking',
@@ -1792,8 +1808,237 @@ function add_enhanced_device_tracking_menu() {
         'device-session-details',
         'device_session_details_page'
     );
+    
+    add_submenu_page(
+        'enhanced-device-tracking',
+        'Tracking Settings',
+        'Event Control',
+        'manage_options',
+        'alhadiya-tracking-settings',
+        'alhadiya_tracking_settings_page'
+    );
 }
 add_action('admin_menu', 'add_enhanced_device_tracking_menu');
+
+// Tracking Settings Page for Bangladesh Users (No Cookie Consent Needed)
+function alhadiya_tracking_settings_page() {
+    // Handle form submission
+    if (isset($_POST['save_tracking_settings'])) {
+        if (!wp_verify_nonce($_POST['tracking_settings_nonce'], 'save_tracking_settings')) {
+            wp_die('Security check failed');
+        }
+        
+        // Save tracking options
+        update_option('alhadiya_enable_page_view', isset($_POST['enable_page_view']) ? 1 : 0);
+        update_option('alhadiya_enable_scroll', isset($_POST['enable_scroll']) ? 1 : 0);
+        update_option('alhadiya_enable_click', isset($_POST['enable_click']) ? 1 : 0);
+        update_option('alhadiya_enable_keypress', isset($_POST['enable_keypress']) ? 1 : 0);
+        update_option('alhadiya_enable_section', isset($_POST['enable_section']) ? 1 : 0);
+        update_option('alhadiya_enable_button', isset($_POST['enable_button']) ? 1 : 0);
+        update_option('alhadiya_enable_payment', isset($_POST['enable_payment']) ? 1 : 0);
+        update_option('alhadiya_enable_battery', isset($_POST['enable_battery']) ? 1 : 0);
+        update_option('alhadiya_enable_connection', isset($_POST['enable_connection']) ? 1 : 0);
+        update_option('alhadiya_enable_activity', isset($_POST['enable_activity']) ? 1 : 0);
+        update_option('alhadiya_enable_device', isset($_POST['enable_device']) ? 1 : 0);
+        
+        echo '<div class="notice notice-success"><p>Tracking settings saved successfully!</p></div>';
+    }
+    
+    // Get current settings
+    $settings = array(
+        'enable_page_view' => get_option('alhadiya_enable_page_view', 1),
+        'enable_scroll' => get_option('alhadiya_enable_scroll', 1),
+        'enable_click' => get_option('alhadiya_enable_click', 1),
+        'enable_keypress' => get_option('alhadiya_enable_keypress', 1),
+        'enable_section' => get_option('alhadiya_enable_section', 1),
+        'enable_button' => get_option('alhadiya_enable_button', 1),
+        'enable_payment' => get_option('alhadiya_enable_payment', 1),
+        'enable_battery' => get_option('alhadiya_enable_battery', 1),
+        'enable_connection' => get_option('alhadiya_enable_connection', 1),
+        'enable_activity' => get_option('alhadiya_enable_activity', 1),
+        'enable_device' => get_option('alhadiya_enable_device', 1)
+    );
+    ?>
+    
+    <div class="wrap">
+        <h1>🇧🇩 Device Tracking Event Control (বাংলাদেশী ইউজারদের জন্য)</h1>
+        <p>সকল ইউজার বাংলাদেশী হওয়ায় কুকিজ কনসেন্ট পপআপ নেই। আপনি যেকোনো ইভেন্ট এনাবল/ডিজেবল করতে পারেন।</p>
+        
+        <form method="post" action="">
+            <?php wp_nonce_field('save_tracking_settings', 'tracking_settings_nonce'); ?>
+            
+            <table class="form-table">
+                <tr>
+                    <th scope="row">📄 Page View Tracking</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_page_view" value="1" <?php checked($settings['enable_page_view'], 1); ?>>
+                            পেজ ভিউ ট্র্যাক করুন
+                        </label>
+                        <p class="description">ইউজার যখন পেজ লোড করে তখন ট্র্যাক করা হবে</p>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">📜 Scroll Tracking</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_scroll" value="1" <?php checked($settings['enable_scroll'], 1); ?>>
+                            স্ক্রল ট্র্যাক করুন
+                        </label>
+                        <p class="description">25%, 50%, 75%, 100% স্ক্রল ডেপথ ট্র্যাক করা হবে</p>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">🖱️ Click Position Tracking</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_click" value="1" <?php checked($settings['enable_click'], 1); ?>>
+                            ক্লিক পজিশন ট্র্যাক করুন
+                        </label>
+                        <p class="description">X:860, Y:274 এর মতো ক্লিক পজিশন ট্র্যাক করা হবে</p>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">⌨️ Keypress Tracking</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_keypress" value="1" <?php checked($settings['enable_keypress'], 1); ?>>
+                            কী প্রেস ট্র্যাক করুন
+                        </label>
+                        <p class="description">প্রতি ১০টি কী প্রেসের পর ট্র্যাক করা হবে</p>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">📍 Section View Tracking</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_section" value="1" <?php checked($settings['enable_section'], 1); ?>>
+                            সেকশন ভিউ ট্র্যাক করুন
+                        </label>
+                        <p class="description">course-section-1, course-section-2, etc. ট্র্যাক করা হবে</p>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">🔘 Button Click Tracking</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_button" value="1" <?php checked($settings['enable_button'], 1); ?>>
+                            বাটন ক্লিক ট্র্যাক করুন
+                        </label>
+                        <p class="description">WhatsApp (.float) এবং Call (.callbtnlaptop) বাটন ট্র্যাক করা হবে</p>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">💳 Payment Method Tracking</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_payment" value="1" <?php checked($settings['enable_payment'], 1); ?>>
+                            পেমেন্ট মেথড ট্র্যাক করুন
+                        </label>
+                        <p class="description">bKash, Nagad, Rocket সিলেকশন ট্র্যাক করা হবে</p>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">🔋 Battery Tracking</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_battery" value="1" <?php checked($settings['enable_battery'], 1); ?>>
+                            ব্যাটারি তথ্য ট্র্যাক করুন
+                        </label>
+                        <p class="description">ব্যাটারি লেভেল এবং চার্জিং স্ট্যাটাস ট্র্যাক করা হবে</p>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">📶 Connection Tracking</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_connection" value="1" <?php checked($settings['enable_connection'], 1); ?>>
+                            কানেকশন তথ্য ট্র্যাক করুন
+                        </label>
+                        <p class="description">WiFi/4G/3G কানেকশন টাইপ ট্র্যাক করা হবে</p>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">📊 Activity Summary</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_activity" value="1" <?php checked($settings['enable_activity'], 1); ?>>
+                            এক্টিভিটি সামারি পাঠান
+                        </label>
+                        <p class="description">প্রতি ৩০ সেকেন্ডে ইউজার এক্টিভিটি সামারি পাঠানো হবে</p>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">📱 Device Info Tracking</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_device" value="1" <?php checked($settings['enable_device'], 1); ?>>
+                            ডিভাইস তথ্য ট্র্যাক করুন
+                        </label>
+                        <p class="description">ব্রাউজার, OS, ডিভাইস টাইপ, CPU ইত্যাদি ট্র্যাক করা হবে</p>
+                    </td>
+                </tr>
+            </table>
+            
+            <p class="submit">
+                <input type="submit" name="save_tracking_settings" class="button-primary" value="Save Tracking Settings">
+            </p>
+        </form>
+        
+        <div class="card" style="margin-top: 20px;">
+            <h3>🇧🇩 Bangladesh Users - No Cookie Consent Required</h3>
+            <p>যেহেতু সকল ইউজার বাংলাদেশী, তাই GDPR বা Cookie Consent Popup এর প্রয়োজন নেই। আপনি সরাসরি tracking enable/disable করতে পারেন।</p>
+            
+            <h4>Manual Control Commands (Console এ ব্যবহার করুন):</h4>
+            <code>
+                enableEventTracking('scroll'); // Scroll tracking enable<br>
+                disableEventTracking('click'); // Click tracking disable<br>
+                enableAllTracking(); // সব tracking enable<br>
+                disableAllTracking(); // সব tracking disable<br>
+                getTrackingStatus(); // Current status দেখুন
+            </code>
+        </div>
+    </div>
+    
+    <style>
+    .form-table th {
+        width: 250px;
+        padding: 15px 10px;
+    }
+    .form-table td {
+        padding: 15px 10px;
+    }
+    .card {
+        background: #fff;
+        border: 1px solid #ccd0d4;
+        border-radius: 4px;
+        padding: 20px;
+        box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    }
+    .card h3 {
+        margin-top: 0;
+        color: #1d2327;
+    }
+    .card code {
+        background: #f6f7f7;
+        padding: 10px;
+        display: block;
+        border-radius: 3px;
+        margin-top: 10px;
+    }
+    </style>
+    <?php
+}
 
 function enhanced_device_tracking_page() {
     global $wpdb;
