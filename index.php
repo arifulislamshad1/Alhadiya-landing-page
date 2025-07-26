@@ -575,6 +575,13 @@ var customEventsTrackingEnabled = <?php echo get_theme_mod('enable_custom_events
 var deviceDetailsTrackingEnabled = <?php echo get_theme_mod('enable_device_details_tracking', true) ? 'true' : 'false'; ?>;
 var timeSpentTrackingEnabled = <?php echo get_theme_mod('enable_time_spent_tracking', true) ? 'true' : 'false'; ?>;
 
+console.log('Tracking Settings:', {
+    deviceTrackingEnabled,
+    customEventsTrackingEnabled,
+    deviceDetailsTrackingEnabled,
+    timeSpentTrackingEnabled
+});
+
 // Helper functions (always available)
 function getCookie(name) {
     const value = `; ${document.cookie}`;
@@ -585,10 +592,16 @@ function getCookie(name) {
 
 function trackCustomEvent(eventType, eventName, eventValue = '') {
     if (!customEventsTrackingEnabled || typeof ajax_object === 'undefined') {
+        console.log('Event tracking disabled or ajax_object not available');
         return;
     }
     const sessionId = getCookie('device_session');
-    if (!sessionId) return;
+    if (!sessionId) {
+        console.log('No session ID found');
+        return;
+    }
+
+    console.log('Tracking event:', { eventType, eventName, eventValue });
 
     jQuery.post(ajax_object.ajax_url, {
         action: 'track_custom_event',
@@ -597,6 +610,10 @@ function trackCustomEvent(eventType, eventName, eventValue = '') {
         event_name: eventName,
         event_value: eventValue,
         nonce: ajax_object.event_nonce
+    }).done(function(response) {
+        console.log('Event tracked successfully:', response);
+    }).fail(function(xhr, status, error) {
+        console.error('Failed to track event:', error);
     });
 }
 
@@ -648,12 +665,20 @@ function onPlayerStateChange(event) {
 
 // Initialize device details tracking
 async function initializeDeviceDetailsTracking() {
+    console.log('Initializing device details tracking...');
+    
     if (!deviceDetailsTrackingEnabled || typeof ajax_object === 'undefined') {
+        console.log('Device details tracking disabled or ajax_object not available');
         return;
     }
     
     const sessionId = getCookie('device_session');
-    if (!sessionId) return;
+    if (!sessionId) {
+        console.log('No session ID found for device details');
+        return;
+    }
+
+    console.log('Session ID found:', sessionId);
 
     const deviceInfo = {
         session_id: sessionId,
@@ -666,12 +691,16 @@ async function initializeDeviceDetailsTracking() {
         nonce: ajax_object.device_info_nonce
     };
 
+    console.log('Device info collected:', deviceInfo);
+
     // Battery Info (async)
     if ('getBattery' in navigator) {
         try {
             const battery = await navigator.getBattery();
             deviceInfo.battery_level = battery.level;
             deviceInfo.battery_charging = battery.charging ? 1 : 0;
+
+            console.log('Battery info:', { level: battery.level, charging: battery.charging });
 
             // Track battery changes as custom events
             battery.addEventListener('chargingchange', () => {
@@ -693,26 +722,32 @@ async function initializeDeviceDetailsTracking() {
             deviceInfo.battery_charging = null;
         }
     } else {
+        console.log('Battery API not available');
         deviceInfo.battery_level = null;
         deviceInfo.battery_charging = null;
     }
 
     // Send device info to server
+    console.log('Sending device info to server...');
     jQuery.post(ajax_object.ajax_url, {
         action: 'update_client_device_details',
         ...deviceInfo
     }, function(response) {
         if (response.success) {
-            console.log('Client device info updated:', response.data);
+            console.log('Client device info updated successfully:', response.data);
         } else {
             console.error('Failed to update client device info:', response.data);
         }
+    }).fail(function(xhr, status, error) {
+        console.error('AJAX failed for device details:', error);
     });
 
     // Send screen size
     const screenWidth = window.screen.width;
     const screenHeight = window.screen.height;
     const screenSize = `${screenWidth}x${screenHeight}`;
+
+    console.log('Screen size:', screenSize);
 
     jQuery.post(ajax_object.ajax_url, {
         action: 'update_device_screen_size',
@@ -721,14 +756,21 @@ async function initializeDeviceDetailsTracking() {
         nonce: ajax_object.screen_size_nonce
     }, function(response) {
         if (response.success) {
-            console.log('Screen size updated:', screenSize);
+            console.log('Screen size updated successfully:', screenSize);
+        } else {
+            console.error('Failed to update screen size:', response.data);
         }
+    }).fail(function(xhr, status, error) {
+        console.error('AJAX failed for screen size:', error);
     });
 }
 
 // Initialize time spent tracking
 function initializeTimeSpentTracking() {
+    console.log('Initializing time spent tracking...');
+    
     if (!timeSpentTrackingEnabled || typeof ajax_object === 'undefined') {
+        console.log('Time spent tracking disabled or ajax_object not available');
         return;
     }
     
@@ -739,12 +781,22 @@ function initializeTimeSpentTracking() {
         var timeSpent = Math.floor((Date.now() - startTime) / 1000);
         
         if (sessionId && timeSpent > 10) { // Only update if more than 10 seconds
+            console.log('Updating time spent:', timeSpent + 's');
             fetch(ajax_object.ajax_url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
                 body: 'action=update_time_spent&session_id=' + sessionId + '&time_spent=' + timeSpent + '&nonce=' + ajax_object.device_info_nonce
+            }).then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Time spent updated successfully');
+                } else {
+                    console.error('Failed to update time spent:', data.data);
+                }
+            }).catch(error => {
+                console.error('Error updating time spent:', error);
             });
         }
     }
@@ -758,6 +810,8 @@ function initializeTimeSpentTracking() {
 
 // Initialize device tracking
 function initializeDeviceTracking() {
+    console.log('Initializing device tracking...');
+    
     // Track page load as an event
     trackCustomEvent('page_load', 'Page Loaded', window.location.pathname);
     
@@ -766,6 +820,8 @@ function initializeDeviceTracking() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM Content Loaded');
+    
     // Initialize Swiper with enhanced autoplay
     const swiper = new Swiper('.reviewSwiper', {
         slidesPerView: 1,
@@ -788,6 +844,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize tracking based on settings
     if (deviceTrackingEnabled) {
+        console.log('Device tracking enabled, initializing...');
         initializeDeviceTracking();
         
         if (timeSpentTrackingEnabled) {
@@ -795,12 +852,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         if (deviceDetailsTrackingEnabled) {
-            initializeDeviceDetailsTracking();
+            // Delay device details initialization to ensure everything is loaded
+            setTimeout(function() {
+                initializeDeviceDetailsTracking();
+            }, 1000);
         }
+    } else {
+        console.log('Device tracking disabled');
     }
     
     // Track custom events if enabled
     if (customEventsTrackingEnabled) {
+        console.log('Custom events tracking enabled');
+        
         // Track button clicks
         document.addEventListener('click', function(e) {
             if (e.target.matches('.btn, button, a[href="#order"]')) {
@@ -843,6 +907,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 lastScrollDepth = currentScrollDepth;
             }
         });
+    } else {
+        console.log('Custom events tracking disabled');
     }
     
     // Product selection and price calculation

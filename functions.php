@@ -586,13 +586,22 @@ function update_device_screen_size() {
     $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
     $screen_size = isset($_POST['screen_size']) ? sanitize_text_field($_POST['screen_size']) : '';
 
-    $wpdb->update(
+    if (empty($session_id) || empty($screen_size)) {
+        wp_send_json_error('Missing session_id or screen_size');
+        return;
+    }
+
+    $result = $wpdb->update(
         $table_name,
         array('screen_size' => $screen_size),
         array('session_id' => $session_id)
     );
 
-    wp_send_json_success('Screen size updated successfully');
+    if ($result === false) {
+        wp_send_json_error('Database update failed: ' . $wpdb->last_error);
+    } else {
+        wp_send_json_success('Screen size updated successfully');
+    }
 }
 add_action('wp_ajax_update_device_screen_size', 'update_device_screen_size');
 add_action('wp_ajax_nopriv_update_device_screen_size', 'update_device_screen_size');
@@ -616,24 +625,29 @@ function update_client_device_details() {
     $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
     $data_to_update = array();
 
-    if (isset($_POST['language'])) $data_to_update['language'] = sanitize_text_field($_POST['language']);
-    if (isset($_POST['timezone'])) $data_to_update['timezone'] = sanitize_text_field($_POST['timezone']);
-    if (isset($_POST['connection_type'])) $data_to_update['connection_type'] = sanitize_text_field($_POST['connection_type']);
-    if (isset($_POST['battery_level'])) $data_to_update['battery_level'] = floatval($_POST['battery_level']);
-    if (isset($_POST['battery_charging'])) $data_to_update['battery_charging'] = intval($_POST['battery_charging']);
-    if (isset($_POST['memory_info'])) $data_to_update['memory_info'] = floatval($_POST['memory_info']);
-    if (isset($_POST['cpu_cores'])) $data_to_update['cpu_cores'] = intval($_POST['cpu_cores']);
-    if (isset($_POST['touchscreen_detected'])) $data_to_update['touchscreen_detected'] = intval($_POST['touchscreen_detected']);
+    if (isset($_POST['language']) && $_POST['language'] !== 'N/A') $data_to_update['language'] = sanitize_text_field($_POST['language']);
+    if (isset($_POST['timezone']) && $_POST['timezone'] !== 'N/A') $data_to_update['timezone'] = sanitize_text_field($_POST['timezone']);
+    if (isset($_POST['connection_type']) && $_POST['connection_type'] !== 'N/A') $data_to_update['connection_type'] = sanitize_text_field($_POST['connection_type']);
+    if (isset($_POST['battery_level']) && $_POST['battery_level'] !== 'N/A' && $_POST['battery_level'] !== null) $data_to_update['battery_level'] = floatval($_POST['battery_level']);
+    if (isset($_POST['battery_charging']) && $_POST['battery_charging'] !== 'N/A' && $_POST['battery_charging'] !== null) $data_to_update['battery_charging'] = intval($_POST['battery_charging']);
+    if (isset($_POST['memory_info']) && $_POST['memory_info'] !== 'N/A') $data_to_update['memory_info'] = floatval($_POST['memory_info']);
+    if (isset($_POST['cpu_cores']) && $_POST['cpu_cores'] !== 'N/A') $data_to_update['cpu_cores'] = intval($_POST['cpu_cores']);
+    if (isset($_POST['touchscreen_detected']) && $_POST['touchscreen_detected'] !== 'N/A') $data_to_update['touchscreen_detected'] = intval($_POST['touchscreen_detected']);
 
     if (!empty($data_to_update) && !empty($session_id)) {
-        $wpdb->update(
+        $result = $wpdb->update(
             $table_name,
             $data_to_update,
             array('session_id' => $session_id)
         );
-        wp_send_json_success('Client device details updated successfully');
+
+        if ($result === false) {
+            wp_send_json_error('Database update failed: ' . $wpdb->last_error);
+        } else {
+            wp_send_json_success('Client device details updated successfully');
+        }
     } else {
-        wp_send_json_error('No data to update');
+        wp_send_json_error('No data to update or missing session_id');
     }
 }
 add_action('wp_ajax_update_client_device_details', 'update_client_device_details');
