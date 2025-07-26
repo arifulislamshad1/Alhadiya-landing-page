@@ -101,6 +101,7 @@ function ensure_tracking_tables_exist() {
     alhadiya_create_server_events_table();
 }
 add_action('init', 'ensure_tracking_tables_exist');
+add_action('after_switch_theme', 'ensure_tracking_tables_exist');
 
 // Insert default FAQs on theme activation if they don't exist
 function alhadiya_insert_default_faqs() {
@@ -668,6 +669,56 @@ function update_client_device_details() {
 }
 add_action('wp_ajax_update_client_device_details', 'update_client_device_details');
 add_action('wp_ajax_nopriv_update_client_device_details', 'update_client_device_details');
+
+// Enhanced AJAX handler for device details via server events
+function handle_device_details_event() {
+    if (!isset($_POST['server_event_nonce']) || !wp_verify_nonce($_POST['server_event_nonce'], 'alhadiya_server_event_nonce')) {
+        wp_send_json_error('Security check failed');
+        return;
+    }
+    
+    $event_name = isset($_POST['event_name']) ? sanitize_text_field($_POST['event_name']) : '';
+    $event_data = isset($_POST['event_data']) ? $_POST['event_data'] : array();
+    
+    if ($event_name === 'device_details' && !empty($event_data)) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'device_tracking';
+        
+        // Get session ID from cookie or generate new one
+        $session_id = alhadiya_init_server_session();
+        
+        $data_to_update = array();
+        
+        if (isset($event_data['screen_size']) && !empty($event_data['screen_size'])) $data_to_update['screen_size'] = sanitize_text_field($event_data['screen_size']);
+        if (isset($event_data['language']) && !empty($event_data['language'])) $data_to_update['language'] = sanitize_text_field($event_data['language']);
+        if (isset($event_data['timezone']) && !empty($event_data['timezone'])) $data_to_update['timezone'] = sanitize_text_field($event_data['timezone']);
+        if (isset($event_data['connection_type']) && !empty($event_data['connection_type'])) $data_to_update['connection_type'] = sanitize_text_field($event_data['connection_type']);
+        if (isset($event_data['battery_level']) && $event_data['battery_level'] !== null) $data_to_update['battery_level'] = floatval($event_data['battery_level']);
+        if (isset($event_data['memory_info']) && !empty($event_data['memory_info'])) $data_to_update['memory_info'] = floatval($event_data['memory_info']);
+        if (isset($event_data['cpu_cores']) && !empty($event_data['cpu_cores'])) $data_to_update['cpu_cores'] = intval($event_data['cpu_cores']);
+        if (isset($event_data['touchscreen_detected']) && $event_data['touchscreen_detected'] !== null) $data_to_update['touchscreen_detected'] = intval($event_data['touchscreen_detected']);
+        
+        if (!empty($data_to_update)) {
+            $result = $wpdb->update(
+                $table_name,
+                $data_to_update,
+                array('session_id' => $session_id)
+            );
+            
+            if ($result !== false) {
+                wp_send_json_success('Device details updated successfully');
+            } else {
+                wp_send_json_error('Database update failed: ' . $wpdb->last_error);
+            }
+        } else {
+            wp_send_json_error('No valid device data to update');
+        }
+    } else {
+        wp_send_json_error('Invalid event data');
+    }
+}
+add_action('wp_ajax_alhadiya_server_event', 'handle_device_details_event', 5);
+add_action('wp_ajax_nopriv_alhadiya_server_event', 'handle_device_details_event', 5);
 
 
 // Fixed WooCommerce order submission with fixed IP blocking
@@ -2512,6 +2563,12 @@ function alhadiya_init_server_session() {
             
             // Store our custom session ID in WooCommerce session
             WC()->session->set('alhadiya_session_id', $session_id);
+            
+            // Set cookie for client-side access
+            $cookie_domain = parse_url(get_site_url(), PHP_URL_HOST);
+            setcookie('device_session', $session_id, time() + (86400 * 30), '/', $cookie_domain, is_ssl(), false);
+            $_COOKIE['device_session'] = $session_id; // Set in current request
+            
             return $session_id;
         } catch (Exception $e) {
             // Fallback to PHP session if WooCommerce session fails
@@ -2525,6 +2582,12 @@ function alhadiya_init_server_session() {
     }
     
     $_SESSION['alhadiya_session_id'] = $session_id;
+    
+    // Set cookie for client-side access
+    $cookie_domain = parse_url(get_site_url(), PHP_URL_HOST);
+    setcookie('device_session', $session_id, time() + (86400 * 30), '/', $cookie_domain, is_ssl(), false);
+    $_COOKIE['device_session'] = $session_id; // Set in current request
+    
     return $session_id;
 }
 
@@ -2729,6 +2792,12 @@ function alhadiya_create_server_events_table() {
 // AJAX handler for server-side events
 if (!function_exists('alhadiya_handle_server_event')) {
     function alhadiya_handle_server_event() {
+        // Check if server tracking is enabled
+        if (!get_theme_mod('enable_server_tracking', true)) {
+            wp_send_json_error('Server tracking is disabled');
+            return;
+        }
+        
         if (!isset($_POST['server_event_nonce']) || !wp_verify_nonce($_POST['server_event_nonce'], 'alhadiya_server_event_nonce')) {
             wp_send_json_error('Security check failed');
             return;
@@ -2756,25 +2825,7 @@ if (!function_exists('alhadiya_handle_server_event')) {
 add_action('wp_ajax_alhadiya_server_event', 'alhadiya_handle_server_event');
 add_action('wp_ajax_nopriv_alhadiya_server_event', 'alhadiya_handle_server_event');
 
-// Add server tracking nonce to AJAX object
-if (!function_exists('alhadiya_add_server_tracking_nonce')) {
-    function alhadiya_add_server_tracking_nonce() {
-        wp_localize_script('jquery', 'ajax_object', array(
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('alhadiya_nonce'),
-            'wc_ajax_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('%%endpoint%%') : '',
-            'dhaka_delivery_charge' => get_theme_mod('dhaka_delivery_charge', 0),
-            'outside_dhaka_delivery_charge' => get_theme_mod('outside_dhaka_delivery_charge', 0),
-            'phone_number' => get_theme_mod('phone_number', '+8801737146996'),
-            'device_info_nonce' => wp_create_nonce('alhadiya_device_info_nonce'),
-            'event_nonce' => wp_create_nonce('alhadiya_event_nonce'),
-            'screen_size_nonce' => wp_create_nonce('alhadiya_screen_size_nonce'),
-            'activity_nonce' => wp_create_nonce('alhadiya_activity_nonce'),
-            'server_event_nonce' => wp_create_nonce('alhadiya_server_event_nonce')
-        ));
-    }
-}
-add_action('wp_enqueue_scripts', 'alhadiya_add_server_tracking_nonce', 20);
+// Remove duplicate function - main ajax_object is already localized in alhadiya_scripts()
 
 // Add tracking settings to customizer
 function alhadiya_add_tracking_settings($wp_customize) {
@@ -2881,6 +2932,7 @@ if (class_exists('WooCommerce')) {
 
 // Ensure session is initialized early for tracking
 add_action('wp', 'alhadiya_init_server_session', 1);
+add_action('init', 'alhadiya_init_server_session', 1);
 
 // Add tracking settings to customizer
 add_action('customize_register', 'alhadiya_add_tracking_settings');

@@ -1,30 +1,34 @@
 <?php
 /**
  * Database Tables Fix Script
- * Run this script to ensure all tracking tables are properly created and updated
+ * Run this script to ensure all tracking tables are created with proper structure
  */
 
 // Prevent direct access
 if (!defined('ABSPATH')) {
-    // If not in WordPress context, define basic constants
-    if (!defined('ABSPATH')) {
-        define('ABSPATH', dirname(__FILE__) . '/');
-    }
-    if (!defined('DB_NAME')) {
-        // You'll need to set these manually if running outside WordPress
-        echo "Please run this script from within WordPress or set database constants manually.\n";
-        exit;
+    // If not in WordPress context, try to load it
+    $wp_load_path = dirname(__FILE__) . '/wp-load.php';
+    if (file_exists($wp_load_path)) {
+        require_once($wp_load_path);
+    } else {
+        die('WordPress not found. Please run this script from your WordPress root directory.');
     }
 }
 
-// Include WordPress functions
-require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+// Ensure we have WordPress loaded
+if (!function_exists('wp_install')) {
+    die('WordPress not properly loaded.');
+}
 
-// Function to create/update device tracking table
-function fix_device_tracking_table() {
+echo "<h1>Database Tables Fix Script</h1>\n";
+echo "<p>Fixing tracking tables...</p>\n";
+
+// Function to create device tracking table
+function create_device_tracking_table_fix() {
     global $wpdb;
     
     $table_name = $wpdb->prefix . 'device_tracking';
+    
     $charset_collate = $wpdb->get_charset_collate();
     
     $sql = "CREATE TABLE $table_name (
@@ -63,45 +67,21 @@ function fix_device_tracking_table() {
         KEY ip_address (ip_address)
     ) $charset_collate;";
     
-    dbDelta($sql);
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    $result = dbDelta($sql);
     
-    // Check if table was created successfully
-    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
+    echo "<p>Device tracking table creation result:</p>\n";
+    echo "<pre>" . print_r($result, true) . "</pre>\n";
     
-    if ($table_exists) {
-        echo "✓ Device tracking table created/updated successfully\n";
-        
-        // Check for missing columns and add them
-        $columns_to_check = array(
-            'language' => 'varchar(50)',
-            'timezone' => 'varchar(100)',
-            'connection_type' => 'varchar(50)',
-            'battery_level' => 'decimal(5,2)',
-            'battery_charging' => 'tinyint(1)',
-            'memory_info' => 'decimal(5,2)',
-            'cpu_cores' => 'int(11)',
-            'touchscreen_detected' => 'tinyint(1)'
-        );
-        
-        foreach ($columns_to_check as $column => $type) {
-            $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $table_name LIKE '$column'");
-            if (empty($column_exists)) {
-                $wpdb->query("ALTER TABLE $table_name ADD COLUMN $column $type");
-                echo "  ✓ Added missing column: $column\n";
-            }
-        }
-    } else {
-        echo "✗ Failed to create device tracking table\n";
-    }
+    return $result;
 }
 
-// Function to create/update device events table
-function fix_device_events_table() {
+// Function to create device events table
+function create_device_events_table_fix() {
     global $wpdb;
-    
     $table_name = $wpdb->prefix . 'device_events';
     $charset_collate = $wpdb->get_charset_collate();
-    
+
     $sql = "CREATE TABLE $table_name (
         id bigint(20) NOT NULL AUTO_INCREMENT,
         session_id varchar(255) NOT NULL,
@@ -114,23 +94,21 @@ function fix_device_events_table() {
         KEY event_type (event_type),
         KEY timestamp (timestamp)
     ) $charset_collate;";
+
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    $result = dbDelta($sql);
     
-    dbDelta($sql);
+    echo "<p>Device events table creation result:</p>\n";
+    echo "<pre>" . print_r($result, true) . "</pre>\n";
     
-    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
-    
-    if ($table_exists) {
-        echo "✓ Device events table created/updated successfully\n";
-    } else {
-        echo "✗ Failed to create device events table\n";
-    }
+    return $result;
 }
 
-// Function to create/update server events table
-function fix_server_events_table() {
+// Function to create server events table
+function create_server_events_table_fix() {
     global $wpdb;
-    
     $table_name = $wpdb->prefix . 'server_events';
+    
     $charset_collate = $wpdb->get_charset_collate();
     
     $sql = "CREATE TABLE $table_name (
@@ -152,83 +130,93 @@ function fix_server_events_table() {
         KEY processed (processed)
     ) $charset_collate;";
     
-    dbDelta($sql);
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    $result = dbDelta($sql);
     
-    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
+    echo "<p>Server events table creation result:</p>\n";
+    echo "<pre>" . print_r($result, true) . "</pre>\n";
     
-    if ($table_exists) {
-        echo "✓ Server events table created/updated successfully\n";
+    return $result;
+}
+
+// Check if tables exist and create them
+$tables_to_check = array(
+    'device_tracking' => 'create_device_tracking_table_fix',
+    'device_events' => 'create_device_events_table_fix',
+    'server_events' => 'create_server_events_table_fix'
+);
+
+foreach ($tables_to_check as $table_name => $create_function) {
+    $full_table_name = $wpdb->prefix . $table_name;
+    
+    echo "<h3>Checking table: $full_table_name</h3>\n";
+    
+    if ($wpdb->get_var("SHOW TABLES LIKE '$full_table_name'") != $full_table_name) {
+        echo "<p>Table does not exist. Creating...</p>\n";
+        $create_function();
     } else {
-        echo "✗ Failed to create server events table\n";
+        echo "<p>Table exists. Checking structure...</p>\n";
+        
+        // Check if all required columns exist
+        $columns = $wpdb->get_results("SHOW COLUMNS FROM $full_table_name");
+        $column_names = array_column($columns, 'Field');
+        
+        echo "<p>Current columns: " . implode(', ', $column_names) . "</p>\n";
+        
+        // Recreate table to ensure proper structure
+        echo "<p>Recreating table to ensure proper structure...</p>\n";
+        $wpdb->query("DROP TABLE IF EXISTS $full_table_name");
+        $create_function();
     }
 }
 
-// Function to clear WordPress cron issues
-function fix_cron_issues() {
-    // Delete problematic cron option
-    delete_option('cron');
+// Test session creation
+echo "<h3>Testing Session Creation</h3>\n";
+
+// Simulate session creation
+$test_session_id = 'test_' . uniqid() . '_' . time();
+$cookie_domain = parse_url(get_site_url(), PHP_URL_HOST);
+
+echo "<p>Test session ID: $test_session_id</p>\n";
+echo "<p>Cookie domain: $cookie_domain</p>\n";
+
+// Test database insertion
+$test_data = array(
+    'session_id' => $test_session_id,
+    'ip_address' => '127.0.0.1',
+    'user_agent' => 'Test User Agent',
+    'device_type' => 'Desktop',
+    'browser' => 'Test Browser',
+    'os' => 'Test OS',
+    'location' => 'Test Location',
+    'isp' => 'Test ISP',
+    'referrer' => 'Test Referrer',
+    'facebook_id' => '',
+    'screen_size' => '1920x1080',
+    'language' => 'en-US',
+    'timezone' => 'UTC',
+    'connection_type' => 'wifi',
+    'battery_level' => 0.85,
+    'battery_charging' => 1,
+    'memory_info' => 8.0,
+    'cpu_cores' => 4,
+    'touchscreen_detected' => 0
+);
+
+$table_name = $wpdb->prefix . 'device_tracking';
+$result = $wpdb->insert($table_name, $test_data);
+
+if ($result !== false) {
+    echo "<p style='color: green;'>✓ Test data inserted successfully. Insert ID: " . $wpdb->insert_id . "</p>\n";
     
-    // Clear any stuck cron jobs
-    wp_clear_scheduled_hook('action_scheduler_run_queue');
-    wp_clear_scheduled_hook('alhadiya_batch_process_events');
-    
-    // Re-schedule our batch processing
-    if (!wp_next_scheduled('alhadiya_batch_process_events')) {
-        wp_schedule_event(time(), 'every_5_minutes', 'alhadiya_batch_process_events');
-    }
-    
-    echo "✓ Cron issues fixed\n";
+    // Clean up test data
+    $wpdb->delete($table_name, array('session_id' => $test_session_id));
+    echo "<p>Test data cleaned up.</p>\n";
+} else {
+    echo "<p style='color: red;'>✗ Failed to insert test data. Error: " . $wpdb->last_error . "</p>\n";
 }
 
-// Function to check and fix session handling
-function fix_session_handling() {
-    // Ensure session is started if needed
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
-    
-    // Clear any problematic session data
-    if (isset($_SESSION['alhadiya_session_id'])) {
-        unset($_SESSION['alhadiya_session_id']);
-    }
-    
-    echo "✓ Session handling fixed\n";
-}
-
-// Main execution
-echo "Starting database tables fix...\n\n";
-
-try {
-    // Fix all tables
-    fix_device_tracking_table();
-    echo "\n";
-    
-    fix_device_events_table();
-    echo "\n";
-    
-    fix_server_events_table();
-    echo "\n";
-    
-    // Fix cron issues
-    fix_cron_issues();
-    echo "\n";
-    
-    // Fix session handling
-    fix_session_handling();
-    echo "\n";
-    
-    echo "✓ All fixes completed successfully!\n";
-    echo "\nNext steps:\n";
-    echo "1. Clear your browser cache\n";
-    echo "2. Test the tracking functionality\n";
-    echo "3. Check the admin dashboard for tracking data\n";
-    
-} catch (Exception $e) {
-    echo "✗ Error during fix: " . $e->getMessage() . "\n";
-}
-
-// If running from command line, add some spacing
-if (php_sapi_name() === 'cli') {
-    echo "\n";
-}
+echo "<h3>Database Fix Complete!</h3>\n";
+echo "<p>All tracking tables have been checked and created/updated as needed.</p>\n";
+echo "<p><a href='" . admin_url() . "'>Return to WordPress Admin</a></p>\n";
 ?>

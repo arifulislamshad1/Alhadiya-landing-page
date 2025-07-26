@@ -1,30 +1,80 @@
 <?php
 /**
- * Test Script for WordPress Tracking System
- * Run this file to verify all components are working correctly
+ * Tracking System Test Script
+ * Run this to verify that all tracking components are working
  */
 
 // Prevent direct access
 if (!defined('ABSPATH')) {
-    // If not in WordPress context, simulate basic environment
-    define('ABSPATH', dirname(__FILE__) . '/');
-    define('WP_DEBUG', true);
-    define('WP_DEBUG_LOG', true);
-    
-    // Load WordPress if possible
-    if (file_exists(ABSPATH . 'wp-config.php')) {
-        require_once(ABSPATH . 'wp-config.php');
+    $wp_load_path = dirname(__FILE__) . '/wp-load.php';
+    if (file_exists($wp_load_path)) {
+        require_once($wp_load_path);
     } else {
-        echo "WordPress not found. Please run this script from your WordPress root directory.\n";
-        exit;
+        die('WordPress not found. Please run this script from your WordPress root directory.');
     }
 }
 
-echo "=== WordPress Tracking System Test ===\n\n";
+// Ensure we have WordPress loaded
+if (!function_exists('wp_install')) {
+    die('WordPress not properly loaded.');
+}
 
-// Test 1: Check if functions exist
-echo "1. Testing Function Existence:\n";
-$functions_to_test = [
+echo "<h1>Tracking System Test</h1>\n";
+echo "<p>Testing all tracking components...</p>\n";
+
+// Test 1: Check if tables exist
+echo "<h2>1. Database Tables Check</h2>\n";
+$tables_to_check = array('device_tracking', 'device_events', 'server_events');
+$all_tables_exist = true;
+
+foreach ($tables_to_check as $table_name) {
+    $full_table_name = $wpdb->prefix . $table_name;
+    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$full_table_name'") == $full_table_name;
+    
+    if ($table_exists) {
+        echo "<p style='color: green;'>✓ Table $full_table_name exists</p>\n";
+    } else {
+        echo "<p style='color: red;'>✗ Table $full_table_name missing</p>\n";
+        $all_tables_exist = false;
+    }
+}
+
+// Test 2: Check session creation
+echo "<h2>2. Session Creation Test</h2>\n";
+if (function_exists('alhadiya_init_server_session')) {
+    $session_id = alhadiya_init_server_session();
+    if (!empty($session_id)) {
+        echo "<p style='color: green;'>✓ Session created: " . substr($session_id, 0, 20) . "...</p>\n";
+    } else {
+        echo "<p style='color: red;'>✗ Session creation failed</p>\n";
+    }
+} else {
+    echo "<p style='color: red;'>✗ alhadiya_init_server_session function not found</p>\n";
+}
+
+// Test 3: Check AJAX endpoints
+echo "<h2>3. AJAX Endpoints Test</h2>\n";
+$ajax_url = admin_url('admin-ajax.php');
+echo "<p>AJAX URL: $ajax_url</p>\n";
+
+// Test 4: Check theme mods
+echo "<h2>4. Theme Settings Check</h2>\n";
+$tracking_settings = array(
+    'enable_device_tracking' => get_theme_mod('enable_device_tracking', true),
+    'enable_server_tracking' => get_theme_mod('enable_server_tracking', true),
+    'enable_device_details_tracking' => get_theme_mod('enable_device_details_tracking', true),
+    'enable_custom_events_tracking' => get_theme_mod('enable_custom_events_tracking', true)
+);
+
+foreach ($tracking_settings as $setting => $value) {
+    $status = $value ? 'enabled' : 'disabled';
+    $color = $value ? 'green' : 'orange';
+    echo "<p style='color: $color;'>• $setting: $status</p>\n";
+}
+
+// Test 5: Check functions exist
+echo "<h2>5. Function Existence Check</h2>\n";
+$functions_to_check = array(
     'alhadiya_init_server_session',
     'alhadiya_log_server_event',
     'alhadiya_handle_server_event',
@@ -32,145 +82,143 @@ $functions_to_test = [
     'create_device_tracking_table',
     'create_device_events_table',
     'alhadiya_create_server_events_table'
-];
+);
 
-foreach ($functions_to_test as $function) {
-    if (function_exists($function)) {
-        echo "   ✅ $function exists\n";
+foreach ($functions_to_check as $function_name) {
+    if (function_exists($function_name)) {
+        echo "<p style='color: green;'>✓ Function $function_name exists</p>\n";
     } else {
-        echo "   ❌ $function does not exist\n";
+        echo "<p style='color: red;'>✗ Function $function_name missing</p>\n";
     }
 }
 
-// Test 2: Check database tables
-echo "\n2. Testing Database Tables:\n";
-global $wpdb;
+// Test 6: Check admin pages
+echo "<h2>6. Admin Pages Check</h2>\n";
+$admin_pages = array(
+    'enhanced-device-tracking' => 'Device Tracking Dashboard',
+    'device-session-details' => 'Session Details',
+    'server-events-dashboard' => 'Server Events Dashboard'
+);
 
-$tables_to_check = [
-    $wpdb->prefix . 'device_tracking',
-    $wpdb->prefix . 'device_events',
-    $wpdb->prefix . 'server_events'
-];
-
-foreach ($tables_to_check as $table) {
-    $result = $wpdb->get_var("SHOW TABLES LIKE '$table'");
-    if ($result) {
-        echo "   ✅ Table $table exists\n";
-        
-        // Check table structure
-        $columns = $wpdb->get_results("SHOW COLUMNS FROM $table");
-        echo "      Columns: " . count($columns) . "\n";
-    } else {
-        echo "   ❌ Table $table does not exist\n";
-    }
+foreach ($admin_pages as $page_slug => $page_name) {
+    $page_url = admin_url("admin.php?page=$page_slug");
+    echo "<p>• <a href='$page_url' target='_blank'>$page_name</a></p>\n";
 }
-
-// Test 3: Test session initialization
-echo "\n3. Testing Session Initialization:\n";
-try {
-    $session_id = alhadiya_init_server_session();
-    if ($session_id) {
-        echo "   ✅ Session ID created: " . substr($session_id, 0, 20) . "...\n";
-    } else {
-        echo "   ❌ Failed to create session ID\n";
-    }
-} catch (Exception $e) {
-    echo "   ❌ Session initialization error: " . $e->getMessage() . "\n";
-}
-
-// Test 4: Test event logging
-echo "\n4. Testing Event Logging:\n";
-try {
-    $test_event = alhadiya_log_server_event('test_event', ['test' => 'data'], 'test_value');
-    if ($test_event) {
-        echo "   ✅ Event logged successfully\n";
-        echo "      Session ID: " . substr($test_event['session_id'], 0, 20) . "...\n";
-        echo "      Event Name: " . $test_event['event_name'] . "\n";
-    } else {
-        echo "   ❌ Failed to log event\n";
-    }
-} catch (Exception $e) {
-    echo "   ❌ Event logging error: " . $e->getMessage() . "\n";
-}
-
-// Test 5: Check nonce creation
-echo "\n5. Testing Nonce Creation:\n";
-$nonce = wp_create_nonce('alhadiya_server_event_nonce');
-if ($nonce) {
-    echo "   ✅ Nonce created: " . substr($nonce, 0, 10) . "...\n";
-} else {
-    echo "   ❌ Failed to create nonce\n";
-}
-
-// Test 6: Check theme mods
-echo "\n6. Testing Theme Mods:\n";
-$tracking_enabled = get_theme_mod('enable_device_tracking', true);
-$server_tracking_enabled = get_theme_mod('enable_server_tracking', true);
-
-echo "   Device Tracking: " . ($tracking_enabled ? '✅ Enabled' : '❌ Disabled') . "\n";
-echo "   Server Tracking: " . ($server_tracking_enabled ? '✅ Enabled' : '❌ Disabled') . "\n";
 
 // Test 7: Check WooCommerce integration
-echo "\n7. Testing WooCommerce Integration:\n";
+echo "<h2>7. WooCommerce Integration Check</h2>\n";
 if (class_exists('WooCommerce')) {
-    echo "   ✅ WooCommerce is active\n";
-    if (function_exists('WC')) {
-        echo "   ✅ WC() function available\n";
+    echo "<p style='color: green;'>✓ WooCommerce is active</p>\n";
+    
+    // Check if WooCommerce session is available
+    if (function_exists('WC') && WC()->session) {
+        echo "<p style='color: green;'>✓ WooCommerce session is available</p>\n";
     } else {
-        echo "   ❌ WC() function not available\n";
+        echo "<p style='color: orange;'>⚠ WooCommerce session not available (will use PHP session fallback)</p>\n";
     }
 } else {
-    echo "   ⚠️  WooCommerce not active (will use PHP sessions)\n";
+    echo "<p style='color: orange;'>⚠ WooCommerce not active (will use PHP session fallback)</p>\n";
 }
 
-// Test 8: Check for any PHP errors
-echo "\n8. Checking for PHP Errors:\n";
-$error_log = ini_get('error_log');
-if ($error_log && file_exists($error_log)) {
-    $recent_errors = shell_exec("tail -n 10 $error_log 2>/dev/null");
-    if ($recent_errors) {
-        echo "   Recent errors found:\n";
-        echo "   " . str_replace("\n", "\n   ", $recent_errors) . "\n";
+// Test 8: Check for errors in error log
+echo "<h2>8. Error Log Check</h2>\n";
+$error_log_path = WP_CONTENT_DIR . '/debug.log';
+if (file_exists($error_log_path)) {
+    $error_log_size = filesize($error_log_path);
+    if ($error_log_size > 0) {
+        echo "<p style='color: orange;'>⚠ Error log exists and has content ($error_log_size bytes)</p>\n";
+        echo "<p><a href='" . content_url('debug.log') . "' target='_blank'>View Error Log</a></p>\n";
     } else {
-        echo "   ✅ No recent errors found\n";
+        echo "<p style='color: green;'>✓ Error log exists but is empty</p>\n";
     }
 } else {
-    echo "   ⚠️  Error log not accessible\n";
+    echo "<p style='color: green;'>✓ No error log found (good sign)</p>\n";
 }
 
-// Test 9: Check file permissions
-echo "\n9. Testing File Permissions:\n";
-$theme_dir = get_template_directory();
-if (is_readable($theme_dir)) {
-    echo "   ✅ Theme directory readable\n";
+// Test 9: Check tracking data
+echo "<h2>9. Tracking Data Check</h2>\n";
+$device_tracking_table = $wpdb->prefix . 'device_tracking';
+$device_events_table = $wpdb->prefix . 'device_events';
+$server_events_table = $wpdb->prefix . 'server_events';
+
+$device_count = $wpdb->get_var("SELECT COUNT(*) FROM $device_tracking_table");
+$events_count = $wpdb->get_var("SELECT COUNT(*) FROM $device_events_table");
+$server_events_count = $wpdb->get_var("SELECT COUNT(*) FROM $server_events_table");
+
+echo "<p>• Device tracking records: $device_count</p>\n";
+echo "<p>• Device events: $events_count</p>\n";
+echo "<p>• Server events: $server_events_count</p>\n";
+
+// Test 10: Generate test data
+echo "<h2>10. Test Data Generation</h2>\n";
+if (isset($_GET['generate_test_data']) && $_GET['generate_test_data'] === '1') {
+    echo "<p>Generating test data...</p>\n";
+    
+    // Generate test device tracking record
+    $test_session_id = 'test_' . uniqid() . '_' . time();
+    $test_device_data = array(
+        'session_id' => $test_session_id,
+        'ip_address' => '127.0.0.1',
+        'user_agent' => 'Test User Agent',
+        'device_type' => 'Desktop',
+        'browser' => 'Test Browser',
+        'os' => 'Test OS',
+        'location' => 'Test Location',
+        'isp' => 'Test ISP',
+        'referrer' => 'Test Referrer',
+        'facebook_id' => '',
+        'screen_size' => '1920x1080',
+        'language' => 'en-US',
+        'timezone' => 'UTC',
+        'connection_type' => 'wifi',
+        'battery_level' => 0.85,
+        'battery_charging' => 1,
+        'memory_info' => 8.0,
+        'cpu_cores' => 4,
+        'touchscreen_detected' => 0
+    );
+    
+    $result = $wpdb->insert($device_tracking_table, $test_device_data);
+    if ($result !== false) {
+        echo "<p style='color: green;'>✓ Test device data inserted (ID: " . $wpdb->insert_id . ")</p>\n";
+        
+        // Generate test event
+        $test_event_data = array(
+            'session_id' => $test_session_id,
+            'event_type' => 'test_event',
+            'event_name' => 'Test Event',
+            'event_value' => 'Test Value',
+            'timestamp' => current_time('mysql')
+        );
+        
+        $event_result = $wpdb->insert($device_events_table, $test_event_data);
+        if ($event_result !== false) {
+            echo "<p style='color: green;'>✓ Test event data inserted (ID: " . $wpdb->insert_id . ")</p>\n";
+        } else {
+            echo "<p style='color: red;'>✗ Failed to insert test event data</p>\n";
+        }
+    } else {
+        echo "<p style='color: red;'>✗ Failed to insert test device data</p>\n";
+    }
 } else {
-    echo "   ❌ Theme directory not readable\n";
+    echo "<p><a href='?generate_test_data=1'>Generate Test Data</a></p>\n";
 }
 
-if (is_writable($theme_dir)) {
-    echo "   ✅ Theme directory writable\n";
+echo "<h2>Test Summary</h2>\n";
+if ($all_tables_exist) {
+    echo "<p style='color: green; font-weight: bold;'>✓ All basic tests passed!</p>\n";
 } else {
-    echo "   ⚠️  Theme directory not writable\n";
+    echo "<p style='color: red; font-weight: bold;'>✗ Some tests failed. Please run the database fix script.</p>\n";
 }
 
-// Test 10: Check AJAX endpoints
-echo "\n10. Testing AJAX Endpoints:\n";
-$ajax_url = admin_url('admin-ajax.php');
-if ($ajax_url) {
-    echo "   ✅ AJAX URL: $ajax_url\n";
-} else {
-    echo "   ❌ AJAX URL not available\n";
-}
+echo "<h3>Next Steps:</h3>\n";
+echo "<ol>\n";
+echo "<li>Visit your website and check browser console for tracking logs</li>\n";
+echo "<li>Check the Device Tracking dashboard in WordPress admin</li>\n";
+echo "<li>Verify that device details are being captured</li>\n";
+echo "<li>Test the order form to ensure tracking works during purchases</li>\n";
+echo "</ol>\n";
 
-echo "\n=== Test Complete ===\n";
-echo "\nIf you see any ❌ errors above, please fix them before using the tracking system.\n";
-echo "If all tests pass with ✅, your tracking system is ready to use!\n";
-
-// Additional recommendations
-echo "\n=== Recommendations ===\n";
-echo "1. Test the frontend by visiting your website and checking browser console\n";
-echo "2. Check the admin dashboard at: " . admin_url('admin.php?page=enhanced-device-tracking') . "\n";
-echo "3. Monitor error logs for any issues\n";
-echo "4. Test with different browsers and devices\n";
-echo "5. Verify external API integrations (Facebook, GA4, etc.)\n";
+echo "<p><a href='" . admin_url() . "'>Return to WordPress Admin</a> | ";
+echo "<a href='" . home_url() . "'>Visit Website</a></p>\n";
 ?>

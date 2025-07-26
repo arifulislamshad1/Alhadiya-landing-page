@@ -990,20 +990,17 @@ function sendDeviceDetails(deviceDetails) {
             server_event_nonce: ajax_object.server_event_nonce
         },
         success: function(response) {
-            console.log('Device details sent successfully:', response);
+            if (response.success) {
+                console.log('Device details sent successfully:', response.data);
+            } else {
+                console.error('Failed to send device details:', response.data);
+            }
         },
         error: function(xhr, status, error) {
             console.error('Failed to send device details:', error);
         }
     });
 }
-
-// Initialize device tracking when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    if (deviceTrackingEnabled) {
-        initializeDeviceTracking();
-    }
-});
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM Content Loaded');
@@ -1071,6 +1068,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize tracking based on settings
     if (deviceTrackingEnabled) {
         console.log('Device tracking enabled, initializing...');
+        initializeDeviceTracking();
         
         if (timeSpentTrackingEnabled) {
             console.log('Time spent tracking enabled');
