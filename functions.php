@@ -2716,29 +2716,27 @@ function alhadiya_create_server_events_table() {
 }
 
 // AJAX handler for server-side events
+if (!function_exists('alhadiya_handle_server_event')) {
 function alhadiya_handle_server_event() {
     if (!isset($_POST['server_event_nonce']) || !wp_verify_nonce($_POST['server_event_nonce'], 'alhadiya_server_event_nonce')) {
         wp_send_json_error('Security check failed');
         return;
     }
-    
     $event_name = isset($_POST['event_name']) ? sanitize_text_field($_POST['event_name']) : '';
     $event_data = isset($_POST['event_data']) ? $_POST['event_data'] : array();
     $event_value = isset($_POST['event_value']) ? sanitize_text_field($_POST['event_value']) : '';
-    
     if (empty($event_name)) {
         wp_send_json_error('Event name is required');
         return;
     }
-    
     // Log the event
     $result = alhadiya_log_server_event($event_name, $event_data, $event_value);
-    
     if ($result) {
         wp_send_json_success('Event logged successfully');
     } else {
         wp_send_json_error('Failed to log event');
     }
+}
 }
 add_action('wp_ajax_alhadiya_server_event', 'alhadiya_handle_server_event');
 add_action('wp_ajax_nopriv_alhadiya_server_event', 'alhadiya_handle_server_event');
