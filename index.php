@@ -583,6 +583,13 @@ var deviceTrackingEnabled = <?php echo get_theme_mod('enable_device_tracking', t
 var customEventsTrackingEnabled = <?php echo get_theme_mod('enable_custom_events_tracking', true) ? 'true' : 'false'; ?>;
 var deviceDetailsTrackingEnabled = <?php echo get_theme_mod('enable_device_details_tracking', true) ? 'true' : 'false'; ?>;
 var timeSpentTrackingEnabled = <?php echo get_theme_mod('enable_time_spent_tracking', true) ? 'true' : 'false'; ?>;
+var serverTrackingEnabled = <?php echo get_theme_mod('enable_server_tracking', true) ? 'true' : 'false'; ?>;
+
+// Server-side tracking IDs
+var facebookPixelId = '<?php echo esc_js(get_theme_mod('facebook_pixel_id', '')); ?>';
+var ga4MeasurementId = '<?php echo esc_js(get_theme_mod('ga4_measurement_id', '')); ?>';
+var microsoftClarityId = '<?php echo esc_js(get_theme_mod('microsoft_clarity_id', '')); ?>';
+var gtmContainerId = '<?php echo esc_js(get_theme_mod('gtm_container_id', '')); ?>';
 
 // Session ID from PHP
 var phpSessionId = '<?php echo $session_id ?: ''; ?>';
@@ -591,9 +598,106 @@ console.log('Tracking Settings:', {
     deviceTrackingEnabled,
     customEventsTrackingEnabled,
     deviceDetailsTrackingEnabled,
-    timeSpentTrackingEnabled
+    timeSpentTrackingEnabled,
+    serverTrackingEnabled
+});
+console.log('Server Tracking IDs:', {
+    facebookPixelId,
+    ga4MeasurementId,
+    microsoftClarityId,
+    gtmContainerId
 });
 console.log('PHP Session ID:', phpSessionId);
+
+// ========================================
+// SERVER-SIDE TRACKING FUNCTIONS
+// ========================================
+
+// Server-side event tracking
+function trackServerEvent(eventName, eventData = {}, eventValue = '') {
+    if (!serverTrackingEnabled || typeof ajax_object === 'undefined') {
+        console.log('Server tracking disabled or ajax_object not available');
+        return;
+    }
+    
+    console.log('Tracking server event:', { eventName, eventData, eventValue });
+    
+    // Send to server
+    jQuery.post(ajax_object.ajax_url, {
+        action: 'alhadiya_server_event',
+        event_name: eventName,
+        event_data: eventData,
+        event_value: eventValue,
+        nonce: ajax_object.server_event_nonce
+    }).done(function(response) {
+        if (response.success) {
+            console.log('Server event tracked successfully:', response.data);
+        } else {
+            console.error('Failed to track server event:', response.data);
+        }
+    }).fail(function(xhr, status, error) {
+        console.error('AJAX failed for server event:', error);
+    });
+}
+
+// Google Tag Manager Data Layer
+function pushToDataLayer(eventName, eventData = {}) {
+    if (typeof dataLayer !== 'undefined') {
+        dataLayer.push({
+            'event': eventName,
+            'event_data': eventData,
+            'session_id': phpSessionId,
+            'timestamp': new Date().toISOString()
+        });
+        console.log('Pushed to DataLayer:', eventName, eventData);
+    }
+}
+
+// Microsoft Clarity Integration
+function trackClarityEvent(eventName, eventData = {}) {
+    if (typeof clarity !== 'undefined') {
+        clarity('event', eventName, eventData);
+        console.log('Clarity event tracked:', eventName, eventData);
+    }
+}
+
+// Facebook Pixel Integration (if available)
+function trackFacebookEvent(eventName, eventData = {}) {
+    if (typeof fbq !== 'undefined' && facebookPixelId) {
+        fbq('track', eventName, eventData);
+        console.log('Facebook event tracked:', eventName, eventData);
+    }
+}
+
+// Google Analytics 4 Integration (if available)
+function trackGA4Event(eventName, eventData = {}) {
+    if (typeof gtag !== 'undefined' && ga4MeasurementId) {
+        gtag('event', eventName, {
+            ...eventData,
+            'session_id': phpSessionId,
+            'custom_parameter': 'server_tracked'
+        });
+        console.log('GA4 event tracked:', eventName, eventData);
+    }
+}
+
+// Universal tracking function
+function trackUniversalEvent(eventName, eventData = {}, eventValue = '') {
+    // Server-side tracking
+    trackServerEvent(eventName, eventData, eventValue);
+    
+    // GTM Data Layer
+    pushToDataLayer(eventName, eventData);
+    
+    // Microsoft Clarity
+    trackClarityEvent(eventName, eventData);
+    
+    // Facebook Pixel
+    trackFacebookEvent(eventName, eventData);
+    
+    // Google Analytics 4
+    trackGA4Event(eventName, eventData);
+}
 
 // Helper functions (always available)
 function getCookie(name) {
@@ -630,6 +734,7 @@ function trackCustomEvent(eventType, eventName, eventValue = '') {
 
     console.log('Tracking event:', { eventType, eventName, eventValue });
 
+    // Track to existing system
     jQuery.post(ajax_object.ajax_url, {
         action: 'track_custom_event',
         session_id: sessionId,
@@ -642,209 +747,201 @@ function trackCustomEvent(eventType, eventName, eventValue = '') {
     }).fail(function(xhr, status, error) {
         console.error('Failed to track event:', error);
     });
+    
+    // Universal tracking
+    trackUniversalEvent(eventType, {
+        event_name: eventName,
+        event_value: eventValue,
+        session_id: sessionId
+    }, eventValue);
 }
 
-function onYouTubeIframeAPIReady() {
-    const videoElement = document.getElementById('youtube-video-player');
-    if (videoElement) {
-        player = new YT.Player('youtube-video-player', {
-            events: {
-                'onReady': onPlayerReady,
-                'onStateChange': onPlayerStateChange
+// ========================================
+// AUTOMATIC EVENT TRACKING
+// ========================================
+
+// Track page load events
+function trackPageLoadEvents() {
+    trackUniversalEvent('page_view', {
+        page_title: document.title,
+        page_url: window.location.href,
+        page_path: window.location.pathname,
+        referrer: document.referrer
+    });
+    
+    trackUniversalEvent('page_load', {
+        load_time: performance.now(),
+        user_agent: navigator.userAgent,
+        screen_resolution: `${screen.width}x${screen.height}`,
+        viewport_size: `${window.innerWidth}x${window.innerHeight}`
+    });
+}
+
+// Track scroll events
+function trackScrollEvents() {
+    let lastScrollDepth = 0;
+    let scrollTimeout;
+    
+    window.addEventListener('scroll', function() {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(function() {
+            const scrollY = window.scrollY;
+            const docHeight = document.documentElement.scrollHeight;
+            const windowHeight = window.innerHeight;
+            const currentScrollDepth = Math.min(100, (scrollY / (docHeight - windowHeight)) * 100);
+
+            if (Math.abs(currentScrollDepth - lastScrollDepth) >= 10) {
+                trackUniversalEvent('scroll_depth', {
+                    scroll_percentage: currentScrollDepth.toFixed(2),
+                    scroll_position: scrollY,
+                    page_height: docHeight
+                }, currentScrollDepth.toFixed(2));
+                lastScrollDepth = currentScrollDepth;
+            }
+        }, 100);
+    });
+}
+
+// Track click events
+function trackClickEvents() {
+    document.addEventListener('click', function(e) {
+        const target = e.target;
+        const tagName = target.tagName.toLowerCase();
+        const className = target.className || '';
+        const id = target.id || '';
+        const text = target.textContent?.trim() || '';
+        const href = target.href || '';
+        
+        // Determine event type
+        let eventType = 'click';
+        let eventData = {
+            element_type: tagName,
+            element_class: className,
+            element_id: id,
+            element_text: text.substring(0, 100),
+            click_position: `${e.clientX},${e.clientY}`,
+            page_url: window.location.href
+        };
+        
+        // Specific event types
+        if (target.matches('.btn, button, a[href="#order"]')) {
+            eventType = 'button_click';
+            eventData.button_type = 'primary';
+        } else if (target.matches('a')) {
+            eventType = 'link_click';
+            eventData.link_url = href;
+        } else if (target.matches('input, select, textarea')) {
+            eventType = 'form_interaction';
+            eventData.field_type = target.type || 'text';
+        }
+        
+        trackUniversalEvent(eventType, eventData);
+    });
+}
+
+// Track form events
+function trackFormEvents() {
+    // Form submission
+    document.addEventListener('submit', function(e) {
+        const form = e.target;
+        const formId = form.id || '';
+        const formAction = form.action || '';
+        
+        trackUniversalEvent('form_submit', {
+            form_id: formId,
+            form_action: formAction,
+            form_method: form.method || 'POST',
+            page_url: window.location.href
+        });
+    });
+    
+    // Form field focus
+    document.addEventListener('focus', function(e) {
+        if (e.target.matches('input, select, textarea')) {
+            trackUniversalEvent('form_field_focus', {
+                field_type: e.target.type || 'text',
+                field_name: e.target.name || '',
+                field_id: e.target.id || '',
+                form_id: e.target.form?.id || ''
+            });
+        }
+    }, true);
+    
+    // Form field change
+    document.addEventListener('change', function(e) {
+        if (e.target.matches('input, select, textarea')) {
+            trackUniversalEvent('form_field_change', {
+                field_type: e.target.type || 'text',
+                field_name: e.target.name || '',
+                field_id: e.target.id || '',
+                form_id: e.target.form?.id || ''
+            });
+        }
+    });
+}
+
+// Track section visibility
+function trackSectionVisibility() {
+    const sections = [
+        { id: 'course-section-1', name: 'অর্গানিক মেহেদী তৈরির সহজ উপায়' },
+        { id: 'course-section-2', name: 'মেহেদী রঙ বাড়ানোর গোপন টিপস' },
+        { id: 'course-section-3', name: 'প্যাকেজিং ও সার্টিফিকেশন' }
+    ];
+    
+    const sectionObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            const sectionId = entry.target.id;
+            const sectionName = sections.find(s => s.id === sectionId)?.name || sectionId;
+            
+            if (entry.isIntersecting) {
+                trackUniversalEvent('section_view', {
+                    section_id: sectionId,
+                    section_name: sectionName,
+                    visibility_percentage: Math.round(entry.intersectionRatio * 100),
+                    page_url: window.location.href
+                });
             }
         });
-    }
-}
-
-function onPlayerReady(event) {
-    videoDuration = player.getDuration();
-    if (videoTrackingEnabled) {
-        trackCustomEvent('video_ready', 'YouTube Video Ready', `Duration: ${videoDuration.toFixed(2)}s`);
-    }
-}
-
-function onPlayerStateChange(event) {
-    if (!videoTrackingEnabled) return;
+    }, { threshold: 0.5 });
     
-    if (event.data == YT.PlayerState.PLAYING) {
-        if (!videoPlayStartTime) {
-            videoPlayStartTime = Date.now();
+    sections.forEach(section => {
+        const element = document.getElementById(section.id);
+        if (element) {
+            sectionObserver.observe(element);
         }
-        trackCustomEvent('video_play', 'YouTube Video Play', `Current Time: ${player.getCurrentTime().toFixed(2)}s`);
-    } else if (event.data == YT.PlayerState.PAUSED) {
-        if (videoPlayStartTime) {
-            const timeSpent = (Date.now() - videoPlayStartTime) / 1000;
-            trackCustomEvent('video_play_time', 'YouTube Video Time Spent', timeSpent.toFixed(2));
-            videoPlayStartTime = null; // Reset
-        }
-        trackCustomEvent('video_pause', 'YouTube Video Pause', `Current Time: ${player.getCurrentTime().toFixed(2)}s`);
-    } else if (event.data == YT.PlayerState.ENDED) {
-        if (videoPlayStartTime) {
-            const timeSpent = (Date.now() - videoPlayStartTime) / 1000;
-            trackCustomEvent('video_play_time', 'YouTube Video Time Spent', timeSpent.toFixed(2));
-            videoPlayStartTime = null; // Reset
-        }
-        trackCustomEvent('video_ended', 'YouTube Video Ended', `Total Duration: ${videoDuration.toFixed(2)}s`);
-    } else if (event.data == YT.PlayerState.BUFFERING) {
-        trackCustomEvent('video_buffering', 'YouTube Video Buffering', `Current Time: ${player.getCurrentTime().toFixed(2)}s`);
-    }
-}
-
-// Initialize device details tracking
-async function initializeDeviceDetailsTracking() {
-    console.log('Initializing device details tracking...');
-    
-    if (!deviceDetailsTrackingEnabled || typeof ajax_object === 'undefined') {
-        console.log('Device details tracking disabled or ajax_object not available');
-        return;
-    }
-    
-    const sessionId = getSessionId();
-    if (!sessionId) {
-        console.log('No session ID found for device details');
-        return;
-    }
-
-    console.log('Session ID found:', sessionId);
-
-    const deviceInfo = {
-        session_id: sessionId,
-        language: navigator.language || 'N/A',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'N/A',
-        connection_type: navigator.connection ? navigator.connection.effectiveType : 'N/A',
-        memory_info: navigator.deviceMemory || 'N/A',
-        cpu_cores: navigator.hardwareConcurrency || 'N/A',
-        touchscreen_detected: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0) ? 1 : 0,
-        nonce: ajax_object.device_info_nonce
-    };
-
-    console.log('Device info collected:', deviceInfo);
-
-    // Battery Info (async)
-    if ('getBattery' in navigator) {
-        try {
-            const battery = await navigator.getBattery();
-            deviceInfo.battery_level = battery.level;
-            deviceInfo.battery_charging = battery.charging ? 1 : 0;
-
-            console.log('Battery info:', { level: battery.level, charging: battery.charging });
-
-            // Track battery changes as custom events
-            battery.addEventListener('chargingchange', () => {
-                trackCustomEvent('battery_status_change', 'Battery Charging Status Changed', JSON.stringify({
-                    level: battery.level,
-                    charging: battery.charging
-                }));
-            });
-            battery.addEventListener('levelchange', () => {
-                trackCustomEvent('battery_status_change', 'Battery Level Changed', JSON.stringify({
-                    level: battery.level,
-                    charging: battery.charging
-                }));
-            });
-
-        } catch (e) {
-            console.warn('Battery API not available or permission denied:', e);
-            deviceInfo.battery_level = null;
-            deviceInfo.battery_charging = null;
-        }
-    } else {
-        console.log('Battery API not available');
-        deviceInfo.battery_level = null;
-        deviceInfo.battery_charging = null;
-    }
-
-    // Send device info to server
-    console.log('Sending device info to server...');
-    jQuery.post(ajax_object.ajax_url, {
-        action: 'update_client_device_details',
-        ...deviceInfo
-    }, function(response) {
-        if (response.success) {
-            console.log('Client device info updated successfully:', response.data);
-        } else {
-            console.error('Failed to update client device info:', response.data);
-        }
-    }).fail(function(xhr, status, error) {
-        console.error('AJAX failed for device details:', error);
-    });
-
-    // Send screen size
-    const screenWidth = window.screen.width;
-    const screenHeight = window.screen.height;
-    const screenSize = `${screenWidth}x${screenHeight}`;
-
-    console.log('Screen size:', screenSize);
-
-    jQuery.post(ajax_object.ajax_url, {
-        action: 'update_device_screen_size',
-        session_id: sessionId,
-        screen_size: screenSize,
-        nonce: ajax_object.screen_size_nonce
-    }, function(response) {
-        if (response.success) {
-            console.log('Screen size updated successfully:', screenSize);
-        } else {
-            console.error('Failed to update screen size:', response.data);
-        }
-    }).fail(function(xhr, status, error) {
-        console.error('AJAX failed for screen size:', error);
     });
 }
 
-// Initialize time spent tracking
-function initializeTimeSpentTracking() {
-    console.log('Initializing time spent tracking...');
+// Track time spent on page
+function trackTimeSpent() {
+    const startTime = Date.now();
     
-    if (!timeSpentTrackingEnabled || typeof ajax_object === 'undefined') {
-        console.log('Time spent tracking disabled or ajax_object not available');
-        return;
-    }
-    
-    var startTime = Date.now();
-    var sessionId = getSessionId();
-    
-    function updateTimeSpent() {
-        var timeSpent = Math.floor((Date.now() - startTime) / 1000);
-        
-        if (sessionId && timeSpent > 10) { // Only update if more than 10 seconds
-            console.log('Updating time spent:', timeSpent + 's');
-            fetch(ajax_object.ajax_url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: 'action=update_time_spent&session_id=' + sessionId + '&time_spent=' + timeSpent + '&nonce=' + ajax_object.device_info_nonce
-            }).then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    console.log('Time spent updated successfully');
-                } else {
-                    console.error('Failed to update time spent:', data.data);
-                }
-            }).catch(error => {
-                console.error('Error updating time spent:', error);
-            });
+    // Track every 30 seconds
+    setInterval(() => {
+        const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+        if (timeSpent % 30 === 0 && timeSpent > 0) {
+            trackUniversalEvent('time_spent', {
+                time_spent_seconds: timeSpent,
+                page_url: window.location.href
+            }, timeSpent.toString());
         }
-    }
+    }, 1000);
     
-    // Update time spent every 30 seconds
-    setInterval(updateTimeSpent, 30000);
-    
-    // Update on page unload
-    window.addEventListener('beforeunload', updateTimeSpent);
+    // Track on page unload
+    window.addEventListener('beforeunload', () => {
+        const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+        if (timeSpent > 10) {
+            trackUniversalEvent('page_exit', {
+                time_spent_seconds: timeSpent,
+                page_url: window.location.href
+            }, timeSpent.toString());
+        }
+    });
 }
 
-// Initialize device tracking
-function initializeDeviceTracking() {
-    console.log('Initializing device tracking...');
-    
-    // Track page load as an event
-    trackCustomEvent('page_load', 'Page Loaded', window.location.pathname);
-    
-    // Track initial page view
-    trackCustomEvent('page_view', 'Page Viewed', window.location.pathname);
-}
+// ========================================
+// INITIALIZATION
+// ========================================
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM Content Loaded');
@@ -856,6 +953,29 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check for session ID immediately
     const initialSessionId = getSessionId();
     console.log('Initial session ID check:', initialSessionId);
+    
+    // Initialize automatic tracking
+    if (serverTrackingEnabled) {
+        console.log('Initializing server-side tracking...');
+        
+        // Track page load events
+        trackPageLoadEvents();
+        
+        // Track scroll events
+        trackScrollEvents();
+        
+        // Track click events
+        trackClickEvents();
+        
+        // Track form events
+        trackFormEvents();
+        
+        // Track section visibility
+        trackSectionVisibility();
+        
+        // Track time spent
+        trackTimeSpent();
+    }
     
     // Initialize Swiper with enhanced autoplay
     const swiper = new Swiper('.reviewSwiper', {
@@ -903,118 +1023,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (customEventsTrackingEnabled) {
         console.log('Custom events tracking enabled');
         
-        // Track section time spent
-        const sections = [
-            { id: 'course-section-1', name: 'অর্গানিক মেহেদী তৈরির সহজ উপায়' },
-            { id: 'course-section-2', name: 'মেহেদী রঙ বাড়ানোর গোপন টিপস' },
-            { id: 'course-section-3', name: 'প্যাকেজিং ও সার্টিফিকেশন' }
-        ];
-        
-        const sectionTimers = {};
-        const sectionStartTimes = {};
-        
-        // Create Intersection Observer for sections
-        const sectionObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                const sectionId = entry.target.id;
-                const sectionName = sections.find(s => s.id === sectionId)?.name || sectionId;
-                
-                if (entry.isIntersecting) {
-                    // Section is visible - start timer
-                    sectionStartTimes[sectionId] = Date.now();
-                    console.log(`Section entered: ${sectionName}`);
-                    trackCustomEvent('section_view', `Section Viewed: ${sectionName}`, sectionId);
-                } else {
-                    // Section is not visible - stop timer and track time spent
-                    if (sectionStartTimes[sectionId]) {
-                        const timeSpent = (Date.now() - sectionStartTimes[sectionId]) / 1000;
-                        console.log(`Section left: ${sectionName}, Time spent: ${timeSpent.toFixed(2)}s`);
-                        trackCustomEvent('section_time_spent', `Time Spent on Section: ${sectionName}`, `${timeSpent.toFixed(2)}s`);
-                        delete sectionStartTimes[sectionId];
-                    }
-                }
-            });
-        }, { threshold: 0.5 }); // Trigger when 50% of section is visible
-        
-        // Observe all sections
-        sections.forEach(section => {
-            const element = document.getElementById(section.id);
-            if (element) {
-                sectionObserver.observe(element);
-                console.log(`Observing section: ${section.name}`);
-            }
-        });
-        
-        // Track time spent on page unload
-        window.addEventListener('beforeunload', () => {
-            sections.forEach(section => {
-                if (sectionStartTimes[section.id]) {
-                    const timeSpent = (Date.now() - sectionStartTimes[section.id]) / 1000;
-                    console.log(`Page unload - Section: ${section.name}, Time spent: ${timeSpent.toFixed(2)}s`);
-                    
-                    // Use sendBeacon for reliable unload tracking
-                    if (navigator.sendBeacon) {
-                        const formData = new FormData();
-                        formData.append('action', 'track_custom_event');
-                        formData.append('session_id', getSessionId());
-                        formData.append('event_type', 'section_time_spent');
-                        formData.append('event_name', `Time Spent on Section: ${section.name} (Unload)`);
-                        formData.append('event_value', `${timeSpent.toFixed(2)}s`);
-                        formData.append('nonce', ajax_object.event_nonce);
-                        navigator.sendBeacon(ajax_object.ajax_url, formData);
-                    }
-                }
-            });
-        });
-        
-        // Live activity tracking - update status every 30 seconds
-        function updateActivityStatus() {
-            const sessionId = getSessionId();
-            if (sessionId && typeof ajax_object !== 'undefined') {
-                console.log('Updating activity status...');
-                fetch(ajax_object.ajax_url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: 'action=update_visitor_activity&session_id=' + sessionId + '&nonce=' + ajax_object.activity_nonce
-                }).then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        console.log('Activity status updated successfully');
-                    } else {
-                        console.error('Failed to update activity status:', data.data);
-                    }
-                }).catch(error => {
-                    console.error('Error updating activity status:', error);
-                });
-            }
-        }
-        
-        // Update activity status every 30 seconds
-        setInterval(updateActivityStatus, 30000);
-        
-        // Initial activity update
-        setTimeout(updateActivityStatus, 5000);
-        
-        // Track button clicks
-        document.addEventListener('click', function(e) {
-            if (e.target.matches('.btn, button, a[href="#order"]')) {
-                trackCustomEvent('button_click', 'Button Click', e.target.textContent.trim() || e.target.getAttribute('href') || 'Unknown Button');
-            }
-        });
-        
-        // Track form interactions
-        const orderForm = document.getElementById('wc-order-form');
-        if (orderForm) {
-            orderForm.addEventListener('submit', function(e) {
-                trackCustomEvent('form_submit', 'Order Form Submit', 'Order Form Submitted');
-            });
-        }
-        
         // Track Swiper interactions
         swiper.on('slideChange', function () {
-            trackCustomEvent('swiper_slide_change', 'Swiper Slide Changed', 'Slide ' + (this.realIndex + 1));
+            trackUniversalEvent('swiper_slide_change', {
+                slide_index: this.realIndex + 1,
+                total_slides: this.slides.length
+            });
         });
         
         // Track FAQ accordion clicks
@@ -1022,22 +1036,11 @@ document.addEventListener('DOMContentLoaded', function() {
             button.addEventListener('click', function() {
                 const faqTitle = this.textContent.trim();
                 const isExpanded = this.getAttribute('aria-expanded') === 'true';
-                trackCustomEvent('faq_toggle', isExpanded ? 'FAQ Closed' : 'FAQ Opened', faqTitle);
+                trackUniversalEvent('faq_toggle', {
+                    faq_title: faqTitle,
+                    action: isExpanded ? 'close' : 'open'
+                });
             });
-        });
-        
-        // Track scroll depth
-        let lastScrollDepth = 0;
-        window.addEventListener('scroll', function() {
-            const scrollY = window.scrollY;
-            const docHeight = document.documentElement.scrollHeight;
-            const windowHeight = window.innerHeight;
-            const currentScrollDepth = Math.min(100, (scrollY / (docHeight - windowHeight)) * 100);
-
-            if (Math.abs(currentScrollDepth - lastScrollDepth) >= 10) {
-                trackCustomEvent('scroll_depth', 'Page Scroll Depth', currentScrollDepth.toFixed(2));
-                lastScrollDepth = currentScrollDepth;
-            }
         });
     } else {
         console.log('Custom events tracking disabled');

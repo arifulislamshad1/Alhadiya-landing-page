@@ -2474,3 +2474,803 @@ function get_visitor_activity_stats() {
         'month' => intval($month_visitors)
     );
 }
+
+// ========================================
+// SERVER-SIDE TRACKING SYSTEM
+// ========================================
+
+// Initialize server-side session for GDPR-friendly tracking
+function alhadiya_init_server_session() {
+    if (!session_id()) {
+        wp_session_start();
+    }
+    
+    // Generate unique session ID if not exists
+    if (!isset($_SESSION['alhadiya_session_id'])) {
+        $_SESSION['alhadiya_session_id'] = 'ss_' . uniqid() . '_' . time();
+    }
+    
+    return $_SESSION['alhadiya_session_id'];
+}
+
+// Server-side event logger
+function alhadiya_log_server_event($event_name, $event_data = array(), $event_value = '') {
+    // Get session ID
+    $session_id = alhadiya_init_server_session();
+    
+    // Get user info
+    $user_ip = get_client_ip();
+    $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field($_SERVER['HTTP_USER_AGENT']) : '';
+    $referrer = isset($_SERVER['HTTP_REFERER']) ? sanitize_text_field($_SERVER['HTTP_REFERER']) : '';
+    
+    // Prepare event data
+    $event_log = array(
+        'session_id' => $session_id,
+        'event_name' => sanitize_text_field($event_name),
+        'event_data' => is_array($event_data) ? $event_data : array(),
+        'event_value' => sanitize_text_field($event_value),
+        'user_ip' => $user_ip,
+        'user_agent' => $user_agent,
+        'referrer' => $referrer,
+        'timestamp' => current_time('mysql'),
+        'page_url' => (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]"
+    );
+    
+    // Log to database
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'server_events';
+    
+    $wpdb->insert(
+        $table_name,
+        array(
+            'session_id' => $event_log['session_id'],
+            'event_name' => $event_log['event_name'],
+            'event_data' => json_encode($event_log['event_data']),
+            'event_value' => $event_log['event_value'],
+            'user_ip' => $event_log['user_ip'],
+            'user_agent' => $event_log['user_agent'],
+            'referrer' => $event_log['referrer'],
+            'page_url' => $event_log['page_url'],
+            'timestamp' => $event_log['timestamp']
+        )
+    );
+    
+    // Send to external platforms
+    alhadiya_send_to_facebook_conversion_api($event_log);
+    alhadiya_send_to_google_analytics($event_log);
+    alhadiya_send_to_microsoft_clarity($event_log);
+    
+    return $event_log;
+}
+
+// Facebook Conversion API Integration
+function alhadiya_send_to_facebook_conversion_api($event_log) {
+    $pixel_id = get_theme_mod('facebook_pixel_id', '');
+    $access_token = get_theme_mod('facebook_access_token', '');
+    
+    if (empty($pixel_id) || empty($access_token)) {
+        return false;
+    }
+    
+    // Map events to Facebook standard events
+    $fb_event_mapping = array(
+        'page_view' => 'PageView',
+        'button_click' => 'CustomEvent',
+        'form_submit' => 'Lead',
+        'order_success' => 'Purchase',
+        'add_to_cart' => 'AddToCart',
+        'view_content' => 'ViewContent',
+        'section_view' => 'ViewContent',
+        'scroll_depth' => 'CustomEvent',
+        'video_play' => 'CustomEvent',
+        'faq_toggle' => 'CustomEvent'
+    );
+    
+    $fb_event_name = isset($fb_event_mapping[$event_log['event_name']]) ? $fb_event_mapping[$event_log['event_name']] : 'CustomEvent';
+    
+    $fb_data = array(
+        'data' => array(
+            array(
+                'event_name' => $fb_event_name,
+                'event_time' => strtotime($event_log['timestamp']),
+                'action_source' => 'website',
+                'event_source_url' => $event_log['page_url'],
+                'user_data' => array(
+                    'client_ip_address' => $event_log['user_ip'],
+                    'client_user_agent' => $event_log['user_agent']
+                ),
+                'custom_data' => array(
+                    'content_name' => $event_log['event_name'],
+                    'content_value' => $event_log['event_value'],
+                    'session_id' => $event_log['session_id']
+                )
+            )
+        ),
+        'access_token' => $access_token
+    );
+    
+    // Send to Facebook Conversion API
+    $response = wp_remote_post(
+        "https://graph.facebook.com/v18.0/{$pixel_id}/events",
+        array(
+            'headers' => array('Content-Type' => 'application/json'),
+            'body' => json_encode($fb_data),
+            'timeout' => 5
+        )
+    );
+    
+    return !is_wp_error($response);
+}
+
+// Google Analytics 4 Integration
+function alhadiya_send_to_google_analytics($event_log) {
+    $ga4_measurement_id = get_theme_mod('ga4_measurement_id', '');
+    $ga4_api_secret = get_theme_mod('ga4_api_secret', '');
+    
+    if (empty($ga4_measurement_id) || empty($ga4_api_secret)) {
+        return false;
+    }
+    
+    $ga4_data = array(
+        'client_id' => $event_log['session_id'],
+        'events' => array(
+            array(
+                'name' => $event_log['event_name'],
+                'params' => array(
+                    'event_value' => $event_log['event_value'],
+                    'page_location' => $event_log['page_url'],
+                    'page_referrer' => $event_log['referrer'],
+                    'session_id' => $event_log['session_id']
+                )
+            )
+        )
+    );
+    
+    // Send to GA4 Measurement Protocol
+    $response = wp_remote_post(
+        "https://www.google-analytics.com/mp/collect?measurement_id={$ga4_measurement_id}&api_secret={$ga4_api_secret}",
+        array(
+            'headers' => array('Content-Type' => 'application/json'),
+            'body' => json_encode($ga4_data),
+            'timeout' => 5
+        )
+    );
+    
+    return !is_wp_error($response);
+}
+
+// Microsoft Clarity Integration
+function alhadiya_send_to_microsoft_clarity($event_log) {
+    $clarity_project_id = get_theme_mod('microsoft_clarity_id', '');
+    
+    if (empty($clarity_project_id)) {
+        return false;
+    }
+    
+    // Clarity uses client-side tracking, so we'll prepare data for JavaScript
+    $clarity_data = array(
+        'event_name' => $event_log['event_name'],
+        'event_data' => $event_log['event_data'],
+        'event_value' => $event_log['event_value'],
+        'session_id' => $event_log['session_id']
+    );
+    
+    // Store in transient for JavaScript pickup
+    set_transient('clarity_event_' . $event_log['session_id'] . '_' . time(), $clarity_data, 300);
+    
+    return true;
+}
+
+// Create server events table
+function alhadiya_create_server_events_table() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'server_events';
+    
+    $charset_collate = $wpdb->get_charset_collate();
+    
+    $sql = "CREATE TABLE $table_name (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        session_id varchar(255) NOT NULL,
+        event_name varchar(255) NOT NULL,
+        event_data longtext,
+        event_value text,
+        user_ip varchar(45),
+        user_agent text,
+        referrer text,
+        page_url text,
+        timestamp datetime DEFAULT CURRENT_TIMESTAMP,
+        processed tinyint(1) DEFAULT 0,
+        PRIMARY KEY (id),
+        KEY session_id (session_id),
+        KEY event_name (event_name),
+        KEY timestamp (timestamp),
+        KEY processed (processed)
+    ) $charset_collate;";
+    
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+
+// AJAX handler for server-side events
+function alhadiya_handle_server_event() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'alhadiya_server_event_nonce')) {
+        wp_send_json_error('Security check failed');
+        return;
+    }
+    
+    $event_name = isset($_POST['event_name']) ? sanitize_text_field($_POST['event_name']) : '';
+    $event_data = isset($_POST['event_data']) ? $_POST['event_data'] : array();
+    $event_value = isset($_POST['event_value']) ? sanitize_text_field($_POST['event_value']) : '';
+    
+    if (empty($event_name)) {
+        wp_send_json_error('Event name is required');
+        return;
+    }
+    
+    // Log the event
+    $result = alhadiya_log_server_event($event_name, $event_data, $event_value);
+    
+    if ($result) {
+        wp_send_json_success('Event logged successfully');
+    } else {
+        wp_send_json_error('Failed to log event');
+    }
+}
+add_action('wp_ajax_alhadiya_server_event', 'alhadiya_handle_server_event');
+add_action('wp_ajax_nopriv_alhadiya_server_event', 'alhadiya_handle_server_event');
+
+// Add tracking settings to customizer
+function alhadiya_add_tracking_settings($wp_customize) {
+    // Server-side Tracking Settings
+    $wp_customize->add_section('server_tracking_settings', array(
+        'title' => __('Server-Side Tracking Settings', 'alhadiya'),
+        'priority' => 40,
+    ));
+    
+    // Facebook Conversion API
+    $wp_customize->add_setting('facebook_pixel_id', array('default' => '', 'sanitize_callback' => 'sanitize_text_field'));
+    $wp_customize->add_control('facebook_pixel_id', array(
+        'label' => __('Facebook Pixel ID', 'alhadiya'),
+        'description' => __('Enter your Facebook Pixel ID for Conversion API', 'alhadiya'),
+        'section' => 'server_tracking_settings',
+        'type' => 'text'
+    ));
+    
+    $wp_customize->add_setting('facebook_access_token', array('default' => '', 'sanitize_callback' => 'sanitize_text_field'));
+    $wp_customize->add_control('facebook_access_token', array(
+        'label' => __('Facebook Access Token', 'alhadiya'),
+        'description' => __('Enter your Facebook Access Token for Conversion API', 'alhadiya'),
+        'section' => 'server_tracking_settings',
+        'type' => 'text'
+    ));
+    
+    // Google Analytics 4
+    $wp_customize->add_setting('ga4_measurement_id', array('default' => '', 'sanitize_callback' => 'sanitize_text_field'));
+    $wp_customize->add_control('ga4_measurement_id', array(
+        'label' => __('GA4 Measurement ID', 'alhadiya'),
+        'description' => __('Enter your GA4 Measurement ID (G-XXXXXXXXXX)', 'alhadiya'),
+        'section' => 'server_tracking_settings',
+        'type' => 'text'
+    ));
+    
+    $wp_customize->add_setting('ga4_api_secret', array('default' => '', 'sanitize_callback' => 'sanitize_text_field'));
+    $wp_customize->add_control('ga4_api_secret', array(
+        'label' => __('GA4 API Secret', 'alhadiya'),
+        'description' => __('Enter your GA4 API Secret for Measurement Protocol', 'alhadiya'),
+        'section' => 'server_tracking_settings',
+        'type' => 'text'
+    ));
+    
+    // Microsoft Clarity
+    $wp_customize->add_setting('microsoft_clarity_id', array('default' => '', 'sanitize_callback' => 'sanitize_text_field'));
+    $wp_customize->add_control('microsoft_clarity_id', array(
+        'label' => __('Microsoft Clarity Project ID', 'alhadiya'),
+        'description' => __('Enter your Microsoft Clarity Project ID', 'alhadiya'),
+        'section' => 'server_tracking_settings',
+        'type' => 'text'
+    ));
+    
+    // Google Tag Manager
+    $wp_customize->add_setting('gtm_container_id', array('default' => '', 'sanitize_callback' => 'sanitize_text_field'));
+    $wp_customize->add_control('gtm_container_id', array(
+        'label' => __('Google Tag Manager Container ID', 'alhadiya'),
+        'description' => __('Enter your GTM Container ID (GTM-XXXXXXX)', 'alhadiya'),
+        'section' => 'server_tracking_settings',
+        'type' => 'text'
+    ));
+    
+    // Enable/Disable Server-side Tracking
+    $wp_customize->add_setting('enable_server_tracking', array('default' => true, 'sanitize_callback' => 'sanitize_checkbox'));
+    $wp_customize->add_control('enable_server_tracking', array(
+        'label' => __('Enable Server-Side Tracking', 'alhadiya'),
+        'description' => __('Enable server-side event tracking (GDPR-friendly)', 'alhadiya'),
+        'section' => 'server_tracking_settings',
+        'type' => 'checkbox'
+    ));
+}
+
+// Add server tracking nonce to wp_localize_script
+function alhadiya_add_server_tracking_nonce() {
+    // Add to existing wp_localize_script
+    $existing_ajax_object = wp_scripts()->get_data('jquery', 'data');
+    if ($existing_ajax_object) {
+        $ajax_object = json_decode($existing_ajax_object, true);
+        $ajax_object['server_event_nonce'] = wp_create_nonce('alhadiya_server_event_nonce');
+        wp_scripts()->add_data('jquery', 'data', json_encode($ajax_object));
+    }
+}
+
+// Initialize server-side tracking
+function alhadiya_init_server_tracking() {
+    // Create server events table
+    alhadiya_create_server_events_table();
+    
+    // Initialize session
+    alhadiya_init_server_session();
+}
+
+// Hook for initialization
+add_action('init', 'alhadiya_init_server_tracking');
+
+// Add tracking settings to customizer
+add_action('customize_register', 'alhadiya_add_tracking_settings');
+
+// Add server tracking nonce
+add_action('wp_enqueue_scripts', 'alhadiya_add_server_tracking_nonce', 20);
+
+// ========================================
+// HIGH-TRAFFIC OPTIMIZATION
+// ========================================
+
+// Batch processing for high traffic
+function alhadiya_batch_process_events() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'server_events';
+    
+    // Process events in batches of 100
+    $batch_size = 100;
+    $processed = 0;
+    
+    $events = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT * FROM $table_name WHERE processed = 0 LIMIT %d",
+            $batch_size
+        )
+    );
+    
+    foreach ($events as $event) {
+        $event_data = json_decode($event->event_data, true);
+        
+        // Send to external platforms
+        alhadiya_send_to_facebook_conversion_api(array(
+            'session_id' => $event->session_id,
+            'event_name' => $event->event_name,
+            'event_data' => $event_data,
+            'event_value' => $event->event_value,
+            'user_ip' => $event->user_ip,
+            'user_agent' => $event->user_agent,
+            'referrer' => $event->referrer,
+            'page_url' => $event->page_url,
+            'timestamp' => $event->timestamp
+        ));
+        
+        // Mark as processed
+        $wpdb->update(
+            $table_name,
+            array('processed' => 1),
+            array('id' => $event->id)
+        );
+        
+        $processed++;
+    }
+    
+    return $processed;
+}
+
+// Schedule batch processing
+if (!wp_next_scheduled('alhadiya_batch_process_events')) {
+    wp_schedule_event(time(), 'every_5_minutes', 'alhadiya_batch_process_events');
+}
+add_action('alhadiya_batch_process_events', 'alhadiya_batch_process_events');
+
+// Add tracking scripts to header
+function alhadiya_add_tracking_scripts() {
+    $gtm_container_id = get_theme_mod('gtm_container_id', '');
+    $facebook_pixel_id = get_theme_mod('facebook_pixel_id', '');
+    $ga4_measurement_id = get_theme_mod('ga4_measurement_id', '');
+    $microsoft_clarity_id = get_theme_mod('microsoft_clarity_id', '');
+    $server_tracking_enabled = get_theme_mod('enable_server_tracking', true);
+    
+    if (!$server_tracking_enabled) {
+        return;
+    }
+    
+    ?>
+    <!-- Google Tag Manager -->
+    <?php if (!empty($gtm_container_id)): ?>
+    <script>
+    (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','<?php echo esc_js($gtm_container_id); ?>');
+    </script>
+    <?php endif; ?>
+    
+    <!-- Facebook Pixel -->
+    <?php if (!empty($facebook_pixel_id)): ?>
+    <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '<?php echo esc_js($facebook_pixel_id); ?>');
+    fbq('track', 'PageView');
+    </script>
+    <noscript><img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id=<?php echo esc_attr($facebook_pixel_id); ?>&ev=PageView&noscript=1"
+    /></noscript>
+    <?php endif; ?>
+    
+    <!-- Google Analytics 4 -->
+    <?php if (!empty($ga4_measurement_id)): ?>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=<?php echo esc_js($ga4_measurement_id); ?>"></script>
+    <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '<?php echo esc_js($ga4_measurement_id); ?>', {
+        'custom_map': {
+            'session_id': 'session_id',
+            'custom_parameter': 'custom_parameter'
+        }
+    });
+    </script>
+    <?php endif; ?>
+    
+    <!-- Microsoft Clarity -->
+    <?php if (!empty($microsoft_clarity_id)): ?>
+    <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "<?php echo esc_js($microsoft_clarity_id); ?>");
+    </script>
+    <?php endif; ?>
+    
+    <!-- Initialize DataLayer for GTM -->
+    <script>
+    window.dataLayer = window.dataLayer || [];
+    dataLayer.push({
+        'event': 'page_view',
+        'page_title': '<?php echo esc_js(get_the_title()); ?>',
+        'page_url': '<?php echo esc_js(get_permalink()); ?>',
+        'session_id': '<?php echo esc_js(alhadiya_init_server_session()); ?>'
+    });
+    </script>
+    <?php
+}
+add_action('wp_head', 'alhadiya_add_tracking_scripts');
+
+// Add GTM noscript to body
+function alhadiya_add_gtm_noscript() {
+    $gtm_container_id = get_theme_mod('gtm_container_id', '');
+    $server_tracking_enabled = get_theme_mod('enable_server_tracking', true);
+    
+    if (!$server_tracking_enabled || empty($gtm_container_id)) {
+        return;
+    }
+    
+    ?>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<?php echo esc_attr($gtm_container_id); ?>"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+    <?php
+}
+add_action('wp_body_open', 'alhadiya_add_gtm_noscript');
+
+// Add server events dashboard menu
+function alhadiya_add_server_events_menu() {
+    add_submenu_page(
+        'enhanced-device-tracking',
+        'Server Events Dashboard',
+        'Server Events',
+        'manage_options',
+        'server-events-dashboard',
+        'alhadiya_server_events_dashboard'
+    );
+}
+add_action('admin_menu', 'alhadiya_add_server_events_menu');
+
+// Server events dashboard page
+function alhadiya_server_events_dashboard() {
+    if (!current_user_can('manage_options')) {
+        wp_die(__('You do not have sufficient permissions to access this page.'));
+    }
+    
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'server_events';
+    
+    // Get events with pagination
+    $per_page = 50;
+    $current_page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+    $offset = ($current_page - 1) * $per_page;
+    
+    // Filtering
+    $where_clause = "1=1";
+    $filter_params = array();
+    
+    if (isset($_GET['filter_event']) && !empty($_GET['filter_event'])) {
+        $where_clause .= " AND event_name = %s";
+        $filter_params[] = sanitize_text_field($_GET['filter_event']);
+    }
+    
+    if (isset($_GET['filter_session']) && !empty($_GET['filter_session'])) {
+        $where_clause .= " AND session_id LIKE %s";
+        $filter_params[] = '%' . $wpdb->esc_like(sanitize_text_field($_GET['filter_session'])) . '%';
+    }
+    
+    if (isset($_GET['filter_status']) && !empty($_GET['filter_status'])) {
+        if ($_GET['filter_status'] === 'processed') {
+            $where_clause .= " AND processed = 1";
+        } elseif ($_GET['filter_status'] === 'unprocessed') {
+            $where_clause .= " AND processed = 0";
+        }
+    }
+    
+    // Get total count for pagination
+    $total_query = "SELECT COUNT(*) FROM $table_name WHERE $where_clause";
+    if (!empty($filter_params)) {
+        $total_query = $wpdb->prepare($total_query, $filter_params);
+    }
+    $total_events = $wpdb->get_var($total_query);
+    
+    // Get events
+    $events_query = "SELECT * FROM $table_name WHERE $where_clause ORDER BY timestamp DESC LIMIT %d OFFSET %d";
+    $events_params = array_merge($filter_params, array($per_page, $offset));
+    $events = $wpdb->get_results($wpdb->prepare($events_query, $events_params));
+    
+    $total_pages = ceil($total_events / $per_page);
+    
+    // Get unique event types for filter
+    $event_types = $wpdb->get_col("SELECT DISTINCT event_name FROM $table_name ORDER BY event_name");
+    
+    ?>
+    <div class="wrap">
+        <h1 class="wp-heading-inline">
+            <i class="dashicons dashicons-chart-area"></i>
+            Server Events Dashboard
+        </h1>
+        <a href="?page=enhanced-device-tracking" class="page-title-action">
+            <i class="dashicons dashicons-arrow-left-alt"></i> Back to Device Tracking
+        </a>
+        
+        <!-- Stats Cards -->
+        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0;">
+            <?php
+            $total_events_count = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
+            $processed_events = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE processed = 1");
+            $unprocessed_events = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE processed = 0");
+            $today_events = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_name WHERE DATE(timestamp) = %s", date('Y-m-d')));
+            ?>
+            
+            <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 24px; font-weight: bold;"><?php echo $total_events_count; ?></h3>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9;">Total Events</p>
+                    </div>
+                    <div style="font-size: 40px; opacity: 0.8;">
+                        <i class="dashicons dashicons-list-view"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 24px; font-weight: bold;"><?php echo $processed_events; ?></h3>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9;">Processed Events</p>
+                    </div>
+                    <div style="font-size: 40px; opacity: 0.8;">
+                        <i class="dashicons dashicons-yes-alt"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 24px; font-weight: bold;"><?php echo $unprocessed_events; ?></h3>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9;">Pending Events</p>
+                    </div>
+                    <div style="font-size: 40px; opacity: 0.8;">
+                        <i class="dashicons dashicons-clock"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 24px; font-weight: bold;"><?php echo $today_events; ?></h3>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9;">Today's Events</p>
+                    </div>
+                    <div style="font-size: 40px; opacity: 0.8;">
+                        <i class="dashicons dashicons-calendar-alt"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Filters -->
+        <div class="filters-section" style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #333;">
+                <i class="dashicons dashicons-filter"></i>
+                Filter Events
+            </h3>
+            <form method="get" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
+                <input type="hidden" name="page" value="server-events-dashboard">
+                
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Event Type:</label>
+                    <select name="filter_event" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">All Events</option>
+                        <?php foreach ($event_types as $type): ?>
+                            <option value="<?php echo esc_attr($type); ?>" <?php selected(isset($_GET['filter_event']) ? $_GET['filter_event'] : '', $type); ?>><?php echo esc_html($type); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Session ID:</label>
+                    <input type="text" name="filter_session" value="<?php echo esc_attr(isset($_GET['filter_session']) ? $_GET['filter_session'] : ''); ?>" placeholder="Enter session ID..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Status:</label>
+                    <select name="filter_status" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">All Status</option>
+                        <option value="processed" <?php selected(isset($_GET['filter_status']) ? $_GET['filter_status'] : '', 'processed'); ?>>Processed</option>
+                        <option value="unprocessed" <?php selected(isset($_GET['filter_status']) ? $_GET['filter_status'] : '', 'unprocessed'); ?>>Unprocessed</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <button type="submit" class="button button-primary" style="padding: 8px 16px; height: auto;">
+                        <i class="dashicons dashicons-search"></i> Filter Events
+                    </button>
+                    <a href="?page=server-events-dashboard" class="button" style="padding: 8px 16px; height: auto; margin-left: 10px;">
+                        <i class="dashicons dashicons-dismiss"></i> Clear
+                    </a>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Events Table -->
+        <div class="events-table" style="background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden;">
+            <div style="padding: 20px; border-bottom: 1px solid #e0e0e0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <h3 style="margin: 0;">
+                    <i class="dashicons dashicons-list-view"></i>
+                    Server Events (<?php echo $total_events; ?> total)
+                </h3>
+            </div>
+            
+            <?php if (empty($events)): ?>
+                <div style="text-align: center; padding: 60px; color: #666;">
+                    <i class="dashicons dashicons-info" style="font-size: 48px; margin-bottom: 20px; opacity: 0.5;"></i>
+                    <h3>No events found</h3>
+                    <p>No events match your current filters.</p>
+                </div>
+            <?php else: ?>
+                <table class="wp-list-table widefat fixed striped" style="border: none;">
+                    <thead>
+                        <tr>
+                            <th style="background: #f8f9fa;">Timestamp</th>
+                            <th style="background: #f8f9fa;">Event Name</th>
+                            <th style="background: #f8f9fa;">Session ID</th>
+                            <th style="background: #f8f9fa;">Event Data</th>
+                            <th style="background: #f8f9fa;">Event Value</th>
+                            <th style="background: #f8f9fa;">User IP</th>
+                            <th style="background: #f8f9fa;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($events as $event): ?>
+                            <tr>
+                                <td style="font-family: monospace; font-size: 12px;">
+                                    <?php echo esc_html(date('M j, Y H:i:s', strtotime($event->timestamp))); ?>
+                                </td>
+                                <td>
+                                    <span style="background: #0073aa; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                                        <?php echo esc_html($event->event_name); ?>
+                                    </span>
+                                </td>
+                                <td style="font-family: monospace; font-size: 11px;">
+                                    <?php echo esc_html(substr($event->session_id, 0, 20)) . '...'; ?>
+                                </td>
+                                <td style="font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
+                                    <?php 
+                                    $event_data = json_decode($event->event_data, true);
+                                    if ($event_data) {
+                                        echo esc_html(json_encode($event_data, JSON_UNESCAPED_UNICODE));
+                                    } else {
+                                        echo 'N/A';
+                                    }
+                                    ?>
+                                </td>
+                                <td style="font-size: 12px; max-width: 150px; overflow: hidden; text-overflow: ellipsis;">
+                                    <?php echo esc_html($event->event_value ?: 'N/A'); ?>
+                                </td>
+                                <td style="font-family: monospace; font-size: 11px;">
+                                    <?php echo esc_html($event->user_ip); ?>
+                                </td>
+                                <td>
+                                    <?php if ($event->processed): ?>
+                                        <span style="background: #28a745; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                                            <i class="dashicons dashicons-yes-alt" style="font-size: 10px;"></i> Processed
+                                        </span>
+                                    <?php else: ?>
+                                        <span style="background: #ffc107; color: #333; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                                            <i class="dashicons dashicons-clock" style="font-size: 10px;"></i> Pending
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+            
+            <!-- Pagination -->
+            <?php if ($total_pages > 1): ?>
+                <div style="padding: 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+                    <?php
+                    $pagination_args = array_merge($_GET, array('page' => 'server-events-dashboard'));
+                    unset($pagination_args['paged']);
+                    
+                    echo paginate_links(array(
+                        'base' => add_query_arg('paged', '%#%'),
+                        'format' => '',
+                        'prev_text' => __('&laquo; Previous'),
+                        'next_text' => __('Next &raquo;'),
+                        'total' => $total_pages,
+                        'current' => $current_page,
+                        'type' => 'array'
+                    ));
+                    ?>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    
+    <style>
+    .stats-grid .stat-card:hover {
+        transform: translateY(-2px);
+        transition: transform 0.3s ease;
+    }
+    
+    .filters-section input:focus,
+    .filters-section select:focus {
+        border-color: #0073aa;
+        box-shadow: 0 0 0 1px #0073aa;
+        outline: none;
+    }
+    
+    .events-table table th {
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .events-table table tr:hover {
+        background-color: #f8f9fa;
+    }
+    </style>
+    <?php
+}
