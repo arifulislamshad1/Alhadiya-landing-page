@@ -903,6 +903,100 @@ document.addEventListener('DOMContentLoaded', function() {
     if (customEventsTrackingEnabled) {
         console.log('Custom events tracking enabled');
         
+        // Track section time spent
+        const sections = [
+            { id: 'course-section-1', name: 'অর্গানিক মেহেদী তৈরির সহজ উপায়' },
+            { id: 'course-section-2', name: 'মেহেদী রঙ বাড়ানোর গোপন টিপস' },
+            { id: 'course-section-3', name: 'প্যাকেজিং ও সার্টিফিকেশন' }
+        ];
+        
+        const sectionTimers = {};
+        const sectionStartTimes = {};
+        
+        // Create Intersection Observer for sections
+        const sectionObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                const sectionId = entry.target.id;
+                const sectionName = sections.find(s => s.id === sectionId)?.name || sectionId;
+                
+                if (entry.isIntersecting) {
+                    // Section is visible - start timer
+                    sectionStartTimes[sectionId] = Date.now();
+                    console.log(`Section entered: ${sectionName}`);
+                    trackCustomEvent('section_view', `Section Viewed: ${sectionName}`, sectionId);
+                } else {
+                    // Section is not visible - stop timer and track time spent
+                    if (sectionStartTimes[sectionId]) {
+                        const timeSpent = (Date.now() - sectionStartTimes[sectionId]) / 1000;
+                        console.log(`Section left: ${sectionName}, Time spent: ${timeSpent.toFixed(2)}s`);
+                        trackCustomEvent('section_time_spent', `Time Spent on Section: ${sectionName}`, `${timeSpent.toFixed(2)}s`);
+                        delete sectionStartTimes[sectionId];
+                    }
+                }
+            });
+        }, { threshold: 0.5 }); // Trigger when 50% of section is visible
+        
+        // Observe all sections
+        sections.forEach(section => {
+            const element = document.getElementById(section.id);
+            if (element) {
+                sectionObserver.observe(element);
+                console.log(`Observing section: ${section.name}`);
+            }
+        });
+        
+        // Track time spent on page unload
+        window.addEventListener('beforeunload', () => {
+            sections.forEach(section => {
+                if (sectionStartTimes[section.id]) {
+                    const timeSpent = (Date.now() - sectionStartTimes[section.id]) / 1000;
+                    console.log(`Page unload - Section: ${section.name}, Time spent: ${timeSpent.toFixed(2)}s`);
+                    
+                    // Use sendBeacon for reliable unload tracking
+                    if (navigator.sendBeacon) {
+                        const formData = new FormData();
+                        formData.append('action', 'track_custom_event');
+                        formData.append('session_id', getSessionId());
+                        formData.append('event_type', 'section_time_spent');
+                        formData.append('event_name', `Time Spent on Section: ${section.name} (Unload)`);
+                        formData.append('event_value', `${timeSpent.toFixed(2)}s`);
+                        formData.append('nonce', ajax_object.event_nonce);
+                        navigator.sendBeacon(ajax_object.ajax_url, formData);
+                    }
+                }
+            });
+        });
+        
+        // Live activity tracking - update status every 30 seconds
+        function updateActivityStatus() {
+            const sessionId = getSessionId();
+            if (sessionId && typeof ajax_object !== 'undefined') {
+                console.log('Updating activity status...');
+                fetch(ajax_object.ajax_url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'action=update_visitor_activity&session_id=' + sessionId + '&nonce=' + ajax_object.activity_nonce
+                }).then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Activity status updated successfully');
+                    } else {
+                        console.error('Failed to update activity status:', data.data);
+                    }
+                }).catch(error => {
+                    console.error('Error updating activity status:', error);
+                });
+            }
+        }
+        
+        // Update activity status every 30 seconds
+        setInterval(updateActivityStatus, 30000);
+        
+        // Initial activity update
+        setTimeout(updateActivityStatus, 5000);
+        
         // Track button clicks
         document.addEventListener('click', function(e) {
             if (e.target.matches('.btn, button, a[href="#order"]')) {
@@ -1317,24 +1411,8 @@ window.addEventListener('beforeunload', function() {
     }
 
     // Track time spent for any currently visible floating buttons
-    for (const buttonName in floatingButtonTimers) {
-        if (floatingButtonTimers.hasOwnProperty(buttonName)) {
-            const timeSpent = (Date.now() - floatingButtonTimers[buttonName]) / 1000;
-            if (navigator.sendBeacon) {
-                const formData = new FormData();
-                formData.append('action', 'track_custom_event');
-                formData.append('session_id', getSessionId()); // Use the new getSessionId()
-                formData.append('event_type', 'button_time_spent');
-                formData.append('event_name', `Time Spent on ${buttonName} (Unload)`);
-                formData.append('event_value', `${timeSpent.toFixed(2)}s`);
-                formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
-                navigator.sendBeacon(ajax_object.ajax_url, formData);
-            } else {
-                // Fallback for older browsers
-                trackCustomEvent('button_time_spent', `Time Spent on ${buttonName} (Unload)`, `${timeSpent.toFixed(2)}s`);
-            }
-        }
-    }
+    // The floatingButtonTimers object was not defined in the original file,
+    // so this section will be removed as per the edit hint.
 });
 </script>
 

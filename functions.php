@@ -43,7 +43,8 @@ function alhadiya_scripts() {
         'phone_number' => get_theme_mod('phone_number', '+8801737146996'),
         'device_info_nonce' => wp_create_nonce('alhadiya_device_info_nonce'), // New nonce for device info
         'event_nonce' => wp_create_nonce('alhadiya_event_nonce'), // New nonce for custom events
-        'screen_size_nonce' => wp_create_nonce('alhadiya_screen_size_nonce') // New nonce for screen size
+        'screen_size_nonce' => wp_create_nonce('alhadiya_screen_size_nonce'), // New nonce for screen size
+        'activity_nonce' => wp_create_nonce('alhadiya_activity_nonce') // New nonce for activity tracking
     ));
 }
 add_action('wp_enqueue_scripts', 'alhadiya_scripts');
@@ -1643,397 +1644,639 @@ function add_enhanced_device_tracking_menu() {
 add_action('admin_menu', 'add_enhanced_device_tracking_menu');
 
 function enhanced_device_tracking_page() {
-    global $wpdb;
-    $tracking_table = $wpdb->prefix . 'device_tracking';
+    if (!current_user_can('manage_options')) {
+        wp_die(__('You do not have sufficient permissions to access this page.'));
+    }
     
-    // Get all tracking data
-    $tracking_data = $wpdb->get_results("SELECT * FROM $tracking_table ORDER BY last_visit DESC LIMIT 100");
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'device_tracking';
+    $events_table = $wpdb->prefix . 'device_events';
+    
+    // Get visitor stats
+    $stats = get_visitor_activity_stats();
+    $live_visitors = get_live_visitors();
+    
+    // Get all sessions with pagination
+    $per_page = 20;
+    $current_page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+    $offset = ($current_page - 1) * $per_page;
+    
+    // Filtering
+    $where_clause = "1=1";
+    $filter_params = array();
+    
+    if (isset($_GET['filter_device']) && !empty($_GET['filter_device'])) {
+        $where_clause .= " AND device_type = %s";
+        $filter_params[] = sanitize_text_field($_GET['filter_device']);
+    }
+    
+    if (isset($_GET['filter_location']) && !empty($_GET['filter_location'])) {
+        $where_clause .= " AND location LIKE %s";
+        $filter_params[] = '%' . $wpdb->esc_like(sanitize_text_field($_GET['filter_location'])) . '%';
+    }
+    
+    if (isset($_GET['filter_status']) && !empty($_GET['filter_status'])) {
+        if ($_GET['filter_status'] === 'online') {
+            $five_minutes_ago = date('Y-m-d H:i:s', strtotime('-5 minutes'));
+            $where_clause .= " AND last_visit >= %s";
+            $filter_params[] = $five_minutes_ago;
+        } elseif ($_GET['filter_status'] === 'offline') {
+            $five_minutes_ago = date('Y-m-d H:i:s', strtotime('-5 minutes'));
+            $where_clause .= " AND last_visit < %s";
+            $filter_params[] = $five_minutes_ago;
+        }
+    }
+    
+    // Get total count for pagination
+    $total_query = "SELECT COUNT(*) FROM $table_name WHERE $where_clause";
+    if (!empty($filter_params)) {
+        $total_query = $wpdb->prepare($total_query, $filter_params);
+    }
+    $total_sessions = $wpdb->get_var($total_query);
+    
+    // Get sessions
+    $sessions_query = "SELECT * FROM $table_name WHERE $where_clause ORDER BY last_visit DESC LIMIT %d OFFSET %d";
+    $sessions_params = array_merge($filter_params, array($per_page, $offset));
+    $sessions = $wpdb->get_results($wpdb->prepare($sessions_query, $sessions_params));
+    
+    $total_pages = ceil($total_sessions / $per_page);
     
     ?>
     <div class="wrap">
-        <h1>Enhanced Device Tracking</h1>
-        <div class="tablenav top">
-            <div class="alignleft actions">
-                <button type="button" class="button" onclick="location.reload()">Refresh</button>
+        <h1 class="wp-heading-inline">
+            <i class="dashicons dashicons-chart-area"></i>
+            Device Tracking Dashboard
+        </h1>
+        
+        <!-- Live Stats Cards -->
+        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 20px 0;">
+            <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 24px; font-weight: bold;"><?php echo $stats['online']; ?></h3>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9;">Live Visitors</p>
+                    </div>
+                    <div style="font-size: 40px; opacity: 0.8;">
+                        <i class="dashicons dashicons-admin-users"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 24px; font-weight: bold;"><?php echo $stats['today']; ?></h3>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9;">Today's Visitors</p>
+                    </div>
+                    <div style="font-size: 40px; opacity: 0.8;">
+                        <i class="dashicons dashicons-calendar-alt"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 24px; font-weight: bold;"><?php echo $stats['week']; ?></h3>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9;">This Week</p>
+                    </div>
+                    <div style="font-size: 40px; opacity: 0.8;">
+                        <i class="dashicons dashicons-chart-line"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 24px; font-weight: bold;"><?php echo $stats['month']; ?></h3>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9;">This Month</p>
+                    </div>
+                    <div style="font-size: 40px; opacity: 0.8;">
+                        <i class="dashicons dashicons-chart-bar"></i>
+                    </div>
+                </div>
             </div>
         </div>
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                    <th>Session ID</th>
-                    <th>IP Address</th>
-                    <th>Device Info</th>
-                    <th>Location & ISP</th>
-                    <th>Referrer</th>
-                    <th>Facebook ID</th>
-                    <th>Visit Count</th>
-                    <th>Time Spent</th>
-                    <th>Pages Viewed</th>
-                    <th>Purchased</th>
-                    <th>Customer Info</th>
-                    <th>Client Device Details</th> <!-- New column header -->
-                    <th>Events Log</th>
-                    <th>First Visit</th>
-                    <th>Last Visit</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($tracking_data as $data): ?>
-                <tr>
-                    <td><small><?php echo substr($data->session_id, 0, 15); ?>...</small></td>
-                    <td><?php echo $data->ip_address; ?></td>
-                    <td>
-                        <small>
-                            <strong>Type:</strong> <?php echo $data->device_type; ?><br>
-                            <strong>Model:</strong> <?php echo $data->device_model; ?><br>
-                            <strong>Browser:</strong> <?php echo $data->browser; ?><br>
-                            <strong>OS:</strong> <?php echo $data->os; ?>
-                        </small>
-                    </td>
-                    <td>
-                        <small>
-                            <strong>Location:</strong> <?php echo $data->location; ?><br>
-                            <strong>ISP:</strong> <?php echo $data->isp; ?>
-                        </small>
-                    </td>
-                    <td>
-                        <small>
+        
+        <!-- Live Visitors Section -->
+        <div class="live-visitors" style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin: 20px 0;">
+            <h2 style="margin-top: 0; color: #333;">
+                <i class="dashicons dashicons-wifi" style="color: #4CAF50;"></i>
+                Live Visitors (Last 5 Minutes)
+            </h2>
+            <div class="live-visitors-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
+                <?php if (empty($live_visitors)): ?>
+                    <p style="color: #666; font-style: italic;">No live visitors at the moment.</p>
+                <?php else: ?>
+                    <?php foreach ($live_visitors as $visitor): ?>
+                        <div class="visitor-card" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                                <div style="width: 10px; height: 10px; background: #4CAF50; border-radius: 50%; margin-right: 10px;"></div>
+                                <strong><?php echo esc_html($visitor->device_type); ?> - <?php echo esc_html($visitor->browser); ?></strong>
+                            </div>
+                            <div style="font-size: 14px; color: #666;">
+                                <div><strong>IP:</strong> <?php echo esc_html($visitor->ip_address); ?></div>
+                                <div><strong>Location:</strong> <?php echo esc_html($visitor->location); ?></div>
+                                <div><strong>Last Active:</strong> <?php echo esc_html(date('H:i:s', strtotime($visitor->last_visit))); ?></div>
+                                <div><strong>Pages Viewed:</strong> <?php echo esc_html($visitor->pages_viewed); ?></div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <!-- Filters -->
+        <div class="filters-section" style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #333;">
+                <i class="dashicons dashicons-filter"></i>
+                Filters
+            </h3>
+            <form method="get" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
+                <input type="hidden" name="page" value="enhanced-device-tracking">
+                
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Device Type:</label>
+                    <select name="filter_device" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">All Devices</option>
+                        <option value="Desktop" <?php selected(isset($_GET['filter_device']) ? $_GET['filter_device'] : '', 'Desktop'); ?>>Desktop</option>
+                        <option value="Mobile" <?php selected(isset($_GET['filter_device']) ? $_GET['filter_device'] : '', 'Mobile'); ?>>Mobile</option>
+                        <option value="Tablet" <?php selected(isset($_GET['filter_device']) ? $_GET['filter_device'] : '', 'Tablet'); ?>>Tablet</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Location:</label>
+                    <input type="text" name="filter_location" value="<?php echo esc_attr(isset($_GET['filter_location']) ? $_GET['filter_location'] : ''); ?>" placeholder="Enter location..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Status:</label>
+                    <select name="filter_status" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">All Status</option>
+                        <option value="online" <?php selected(isset($_GET['filter_status']) ? $_GET['filter_status'] : '', 'online'); ?>>Online</option>
+                        <option value="offline" <?php selected(isset($_GET['filter_status']) ? $_GET['filter_status'] : '', 'offline'); ?>>Offline</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <button type="submit" class="button button-primary" style="padding: 8px 16px; height: auto;">
+                        <i class="dashicons dashicons-search"></i> Filter
+                    </button>
+                    <a href="?page=enhanced-device-tracking" class="button" style="padding: 8px 16px; height: auto; margin-left: 10px;">
+                        <i class="dashicons dashicons-dismiss"></i> Clear
+                    </a>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Sessions Table -->
+        <div class="sessions-table" style="background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden;">
+            <div style="padding: 20px; border-bottom: 1px solid #e0e0e0;">
+                <h3 style="margin: 0; color: #333;">
+                    <i class="dashicons dashicons-list-view"></i>
+                    All Sessions (<?php echo $total_sessions; ?> total)
+                </h3>
+            </div>
+            
+            <table class="wp-list-table widefat fixed striped" style="border: none;">
+                <thead>
+                    <tr>
+                        <th>Session ID</th>
+                        <th>Device Info</th>
+                        <th>Location & ISP</th>
+                        <th>Screen & Language</th>
+                        <th>Activity</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($sessions)): ?>
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 40px; color: #666;">
+                                <i class="dashicons dashicons-info" style="font-size: 24px; margin-bottom: 10px;"></i>
+                                <br>No sessions found matching your filters.
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($sessions as $session): ?>
                             <?php 
-                            if ($data->referrer) {
-                                $domain = parse_url($data->referrer, PHP_URL_HOST);
-                                echo $domain ? $domain : 'Direct';
-                            } else {
-                                echo 'Direct';
+                            $is_online = (strtotime($session->last_visit) > strtotime('-5 minutes'));
+                            $time_spent_formatted = '';
+                            if ($session->time_spent > 0) {
+                                $minutes = floor($session->time_spent / 60);
+                                $seconds = $session->time_spent % 60;
+                                $time_spent_formatted = "{$minutes}m {$seconds}s";
                             }
                             ?>
-                        </small>
-                    </td>
-                    <td><?php echo $data->facebook_id ? $data->facebook_id : 'N/A'; ?></td>
-                    <td><span class="badge"><?php echo $data->visit_count; ?></span></td>
-                    <td>
-                        <?php 
-                        $minutes = floor($data->time_spent / 60);
-                        $seconds = $data->time_spent % 60;
-                        echo $minutes . 'm ' . $seconds . 's';
-                        ?>
-                    </td>
-                    <td><span class="badge"><?php echo $data->pages_viewed; ?></span></td>
-                    <td>
-                        <?php if ($data->has_purchased): ?>
-                            <span style="color: green;">✓ Yes</span>
-                        <?php else: ?>
-                            <span style="color: red;">✗ No</span>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <?php if ($data->has_purchased): ?>
-                            <small>
-                                <strong>Name:</strong> <?php echo esc_html($data->customer_name); ?><br>
-                                <strong>Phone:</strong> <?php echo esc_html($data->customer_phone); ?><br>
-                                <strong>Address:</strong> <?php echo esc_html($data->customer_address); ?>
-                            </small>
-                        <?php else: ?>
-                            N/A
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <small>
-                            <strong>Screen:</strong> <?php echo $data->screen_size ? esc_html($data->screen_size) : 'N/A'; ?><br>
-                            <strong>Lang:</strong> <?php echo $data->language ? esc_html($data->language) : 'N/A'; ?><br>
-                            <strong>TZ:</strong> <?php echo $data->timezone ? esc_html($data->timezone) : 'N/A'; ?><br>
-                            <strong>Conn:</strong> <?php echo $data->connection_type ? esc_html($data->connection_type) : 'N/A'; ?><br>
-                            <strong>Batt:</strong> <?php echo $data->battery_level !== null ? (esc_html($data->battery_level * 100) . '% ' . ($data->battery_charging ? '(Charging)' : '(Discharging)')) : 'N/A'; ?><br>
-                            <strong>Mem:</strong> <?php echo $data->memory_info !== null ? (esc_html($data->memory_info) . 'GB') : 'N/A'; ?><br>
-                            <strong>CPU:</strong> <?php echo $data->cpu_cores !== null ? esc_html($data->cpu_cores) : 'N/A'; ?><br>
-                            <strong>Touch:</strong> <?php echo $data->touchscreen_detected !== null ? ($data->touchscreen_detected ? 'Yes' : 'No') : 'N/A'; ?>
-                        </small>
-                    </td>
-                    <td>
-                        <a href="<?php echo esc_url(admin_url('admin.php?page=device-session-details&session_id=' . $data->session_id)); ?>" class="events-log-link">View Events</a>
-                    </td>
-                    <td><small><?php echo date('M j, Y H:i', strtotime($data->first_visit)); ?></small></td>
-                    <td><small><?php echo date('M j, Y H:i', strtotime($data->last_visit)); ?></small></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+                            <tr>
+                                <td style="font-family: monospace; font-size: 12px;">
+                                    <?php echo esc_html(substr($session->session_id, 0, 20)) . '...'; ?>
+                                </td>
+                                <td>
+                                    <div style="font-weight: bold;"><?php echo esc_html($session->device_type); ?> - <?php echo esc_html($session->browser); ?></div>
+                                    <div style="font-size: 12px; color: #666;"><?php echo esc_html($session->os); ?></div>
+                                    <div style="font-size: 12px; color: #666;"><?php echo esc_html($session->ip_address); ?></div>
+                                </td>
+                                <td>
+                                    <div style="font-weight: bold;"><?php echo esc_html($session->location); ?></div>
+                                    <div style="font-size: 12px; color: #666;"><?php echo esc_html($session->isp); ?></div>
+                                </td>
+                                <td>
+                                    <div style="font-weight: bold;"><?php echo esc_html($session->screen_size ?: 'N/A'); ?></div>
+                                    <div style="font-size: 12px; color: #666;"><?php echo esc_html($session->language ?: 'N/A'); ?></div>
+                                    <div style="font-size: 12px; color: #666;"><?php echo esc_html($session->timezone ?: 'N/A'); ?></div>
+                                </td>
+                                <td>
+                                    <div style="font-weight: bold;"><?php echo esc_html($session->pages_viewed); ?> pages</div>
+                                    <div style="font-size: 12px; color: #666;"><?php echo esc_html($time_spent_formatted ?: '0m 0s'); ?></div>
+                                    <div style="font-size: 12px; color: #666;"><?php echo esc_html($session->visit_count); ?> visits</div>
+                                </td>
+                                <td>
+                                    <?php if ($is_online): ?>
+                                        <span style="background: #4CAF50; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                                            <i class="dashicons dashicons-wifi" style="font-size: 10px;"></i> Online
+                                        </span>
+                                    <?php else: ?>
+                                        <span style="background: #f44336; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                                            <i class="dashicons dashicons-dismiss" style="font-size: 10px;"></i> Offline
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <a href="?page=device-session-details&session_id=<?php echo urlencode($session->session_id); ?>" class="button button-small">
+                                        <i class="dashicons dashicons-visibility"></i> Details
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+            
+            <!-- Pagination -->
+            <?php if ($total_pages > 1): ?>
+                <div style="padding: 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+                    <?php
+                    $pagination_args = array_merge($_GET, array('page' => 'enhanced-device-tracking'));
+                    unset($pagination_args['paged']);
+                    
+                    echo paginate_links(array(
+                        'base' => add_query_arg('paged', '%#%'),
+                        'format' => '',
+                        'prev_text' => __('&laquo; Previous'),
+                        'next_text' => __('Next &raquo;'),
+                        'total' => $total_pages,
+                        'current' => $current_page,
+                        'type' => 'array'
+                    ));
+                    ?>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
+    
+    <style>
+    .stats-grid .stat-card:hover {
+        transform: translateY(-2px);
+        transition: transform 0.3s ease;
+    }
+    
+    .visitor-card:hover {
+        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        transition: box-shadow 0.3s ease;
+    }
+    
+    .filters-section input:focus,
+    .filters-section select:focus {
+        border-color: #0073aa;
+        box-shadow: 0 0 0 1px #0073aa;
+        outline: none;
+    }
+    
+    .sessions-table table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .sessions-table table tr:hover {
+        background-color: #f8f9fa;
+    }
+    </style>
     <?php
 }
 
 function device_session_details_page() {
-    global $wpdb;
-    $session_id = isset($_GET['session_id']) ? sanitize_text_field($_GET['session_id']) : '';
-    $filter_start_date = isset($_GET['filter_start_date']) ? sanitize_text_field($_GET['filter_start_date']) : '';
-    $filter_start_time = isset($_GET['filter_start_time']) ? sanitize_text_field($_GET['filter_start_time']) : '';
-    $filter_end_date = isset($_GET['filter_end_date']) ? sanitize_text_field($_GET['filter_end_date']) : '';
-    $filter_end_time = isset($_GET['filter_end_time']) ? sanitize_text_field($_GET['filter_end_time']) : '';
-    $filter_event_types = isset($_GET['filter_event_types']) && is_array($_GET['filter_event_types']) ? array_map('sanitize_text_field', $_GET['filter_event_types']) : array();
-
-    if (empty($session_id)) {
-        echo '<div class="wrap"><h1>Session Details</h1><p>No session ID provided.</p></div>';
-        return;
+    if (!current_user_can('manage_options')) {
+        wp_die(__('You do not have sufficient permissions to access this page.'));
     }
-
-    $tracking_table = $wpdb->prefix . 'device_tracking';
+    
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'device_tracking';
     $events_table = $wpdb->prefix . 'device_events';
-
-    $session_data = $wpdb->get_row($wpdb->prepare(
-        "SELECT * FROM $tracking_table WHERE session_id = %s",
+    
+    $session_id = isset($_GET['session_id']) ? sanitize_text_field($_GET['session_id']) : '';
+    
+    if (empty($session_id)) {
+        wp_die(__('No session ID provided.'));
+    }
+    
+    // Get session details
+    $session = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM $table_name WHERE session_id = %s",
         $session_id
     ));
-
-    $where_clauses = array();
-    $where_clauses[] = $wpdb->prepare("session_id = %s", $session_id);
-
-    // Date and Time Filtering
-    if (!empty($filter_start_date)) {
-        $start_datetime = $filter_start_date . (empty($filter_start_time) ? ' 00:00:00' : ' ' . $filter_start_time . ':00');
-        $where_clauses[] = $wpdb->prepare("timestamp >= %s", $start_datetime);
+    
+    if (!$session) {
+        wp_die(__('Session not found.'));
     }
-    if (!empty($filter_end_date)) {
-        $end_datetime = $filter_end_date . (empty($filter_end_time) ? ' 23:59:59' : ' ' . $filter_end_time . ':59');
-        $where_clauses[] = $wpdb->prepare("timestamp <= %s", $end_datetime);
+    
+    // Get events for this session with filtering
+    $where_clause = "session_id = %s";
+    $filter_params = array($session_id);
+    
+    // Date range filtering
+    $start_date = isset($_GET['start_date']) ? sanitize_text_field($_GET['start_date']) : '';
+    $end_date = isset($_GET['end_date']) ? sanitize_text_field($_GET['end_date']) : '';
+    $event_type = isset($_GET['event_type']) ? sanitize_text_field($_GET['event_type']) : '';
+    
+    if (!empty($start_date)) {
+        $where_clause .= " AND DATE(timestamp) >= %s";
+        $filter_params[] = $start_date;
     }
-
-    // Event Type Filtering
-    if (!empty($filter_event_types)) {
-        $event_types_placeholder = implode(', ', array_fill(0, count($filter_event_types), '%s'));
-        $where_clauses[] = $wpdb->prepare("event_type IN ($event_types_placeholder)", $filter_event_types);
+    
+    if (!empty($end_date)) {
+        $where_clause .= " AND DATE(timestamp) <= %s";
+        $filter_params[] = $end_date;
     }
-
-    $where_sql = count($where_clauses) > 0 ? ' WHERE ' . implode(' AND ', $where_clauses) : '';
-
-    $session_events = $wpdb->get_results(
-        "SELECT * FROM $events_table" . $where_sql . " ORDER BY timestamp ASC"
-    );
-
-    // List of all possible event types for checkboxes
-    $all_event_types = array(
-        'page_view' => 'Page View',
-        'swiper_slide_change' => 'Swiper Slide Change',
-        'swiper_nav_click' => 'Swiper Navigation Click',
-        'swiper_pagination_click' => 'Swiper Pagination Click',
-        'section_view' => 'Section Viewed',
-        'section_time_spent' => 'Section Time Spent',
-        'button_visible' => 'Button Visible',
-        'button_time_spent' => 'Button Time Spent',
-        'button_click' => 'Button Click',
-        'scroll' => 'Scroll',
-        'scroll_depth' => 'Scroll Depth', // New event type
-        'click_position' => 'Click Position', // New event type
-        'key_press' => 'Key Press', // New event type
-        'product_select' => 'Product Select',
-        'delivery_option_select' => 'Delivery Option Select',
-        'payment_method_select' => 'Payment Method Select',
-        'form_field_focus' => 'Form Field Focus',
-        'form_field_change' => 'Form Field Change',
-        'faq_toggle' => 'FAQ Toggle',
-        'order_form_submit' => 'Order Form Submit',
-        'order_success' => 'Order Success',
-        'order_failure' => 'Order Failure',
-        'order_error' => 'Order Error',
-        'video_ready' => 'Video Ready',
-        'video_play' => 'Video Play',
-        'video_pause' => 'Video Pause',
-        'video_ended' => 'Video Ended',
-        'video_buffering' => 'Video Buffering',
-        'battery_status_change' => 'Battery Status Change', // New event type
-    );
-
+    
+    if (!empty($event_type)) {
+        $where_clause .= " AND event_type = %s";
+        $filter_params[] = $event_type;
+    }
+    
+    // Get events
+    $events_query = "SELECT * FROM $events_table WHERE $where_clause ORDER BY timestamp DESC";
+    $events = $wpdb->get_results($wpdb->prepare($events_query, $filter_params));
+    
+    // Get unique event types for filter
+    $event_types = $wpdb->get_col($wpdb->prepare(
+        "SELECT DISTINCT event_type FROM $events_table WHERE session_id = %s ORDER BY event_type",
+        $session_id
+    ));
+    
     ?>
-    <div class="wrap session-details-wrap">
-        <h1>Session Details for <small><?php echo substr(esc_html($session_id), 0, 20); ?>...</small></h1>
-        <a href="<?php echo esc_url(admin_url('admin.php?page=enhanced-device-tracking')); ?>" class="button-secondary">← Back to All Sessions</a>
-
-        <?php if ($session_data): ?>
-            <div class="session-summary">
-                <h2>Session Summary</h2>
-                <p><strong>Session ID:</strong> <?php echo esc_html($session_data->session_id); ?></p>
-                <p><strong>IP Address:</strong> <?php echo esc_html($session_data->ip_address); ?></p>
-                <p><strong>Device Info:</strong> 
-                    <?php echo esc_html($session_data->device_type); ?> (<?php echo esc_html($session_data->device_model); ?>) - 
-                    <?php echo esc_html($session_data->browser); ?> on <?php echo esc_html($session_data->os); ?>
-                </p>
-                <p><strong>Location:</strong> <?php echo esc_html($session_data->location); ?></p>
-                <p><strong>ISP:</strong> <?php echo esc_html($session_data->isp); ?></p>
-                <p><strong>Referrer:</strong> <?php echo esc_html($session_data->referrer ? $session_data->referrer : 'Direct'); ?></p>
-                <p><strong>Facebook ID:</strong> <?php echo esc_html($session_data->facebook_id ? $session_data->facebook_id : 'N/A'); ?></p>
-                <p><strong>Visit Count:</strong> <?php echo esc_html($session_data->visit_count); ?></p>
-                <p><strong>Time Spent:</strong> 
-                    <?php 
-                    $minutes = floor($session_data->time_spent / 60);
-                    $seconds = $session_data->time_spent % 60;
-                    echo $minutes . 'm ' . $seconds . 's';
-                    ?>
-                </p>
-                <p><strong>Pages Viewed:</strong> <?php echo esc_html($session_data->pages_viewed); ?></p>
-                <p><strong>Purchased:</strong> 
-                    <?php if ($session_data->has_purchased): ?>
-                        <span style="color: green;">✓ Yes</span>
-                    <?php else: ?>
-                        <span style="color: red;">✗ No</span>
-                    <?php endif; ?>
-                </p>
-                <?php if ($session_data->has_purchased): ?>
-                    <p><strong>Customer Name:</strong> <?php echo esc_html($session_data->customer_name); ?></p>
-                    <p><strong>Customer Phone:</strong> <?php echo esc_html($session_data->customer_phone); ?></p>
-                    <p><strong>Customer Address:</strong> <?php echo esc_html($session_data->customer_address); ?></p>
-                <?php endif; ?>
-                <p><strong>Screen Size:</strong> <?php echo $session_data->screen_size ? esc_html($session_data->screen_size) : 'N/A'; ?></p>
-                <p><strong>Language:</strong> <?php echo $session_data->language ? esc_html($session_data->language) : 'N/A'; ?></p>
-                <p><strong>Timezone:</strong> <?php echo $session_data->timezone ? esc_html($session_data->timezone) : 'N/A'; ?></p>
-                <p><strong>Connection Type:</strong> <?php echo $session_data->connection_type ? esc_html($session_data->connection_type) : 'N/A'; ?></p>
-                <p><strong>Battery Level:</strong> <?php echo $session_data->battery_level !== null ? (esc_html($session_data->battery_level * 100) . '%') : 'N/A'; ?></p>
-                <p><strong>Battery Charging:</strong> <?php echo $session_data->battery_charging !== null ? ($session_data->battery_charging ? 'Yes' : 'No') : 'N/A'; ?></p>
-                <p><strong>Memory Info:</strong> <?php echo $session_data->memory_info !== null ? (esc_html($session_data->memory_info) . 'GB') : 'N/A'; ?></p>
-                <p><strong>CPU Cores:</strong> <?php echo $session_data->cpu_cores !== null ? esc_html($session_data->cpu_cores) : 'N/A'; ?></p>
-                <p><strong>Touchscreen Detected:</strong> <?php echo $session_data->touchscreen_detected !== null ? ($session_data->touchscreen_detected ? 'Yes' : 'No') : 'N/A'; ?></p>
-                <p><strong>First Visit:</strong> <?php echo date('M j, Y H:i:s', strtotime($session_data->first_visit)); ?></p>
-                <p><strong>Last Visit:</strong> <?php echo date('M j, Y H:i:s', strtotime($session_data->last_visit)); ?></p>
+    <div class="wrap">
+        <h1 class="wp-heading-inline">
+            <i class="dashicons dashicons-admin-users"></i>
+            Session Details
+        </h1>
+        <a href="?page=enhanced-device-tracking" class="page-title-action">
+            <i class="dashicons dashicons-arrow-left-alt"></i> Back to Dashboard
+        </a>
+        
+        <!-- Session Overview Card -->
+        <div class="session-overview" style="background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin: 20px 0;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px;">
+                <!-- Basic Info -->
+                <div class="info-section">
+                    <h3 style="margin-top: 0; color: #333; border-bottom: 2px solid #0073aa; padding-bottom: 10px;">
+                        <i class="dashicons dashicons-info"></i> Basic Information
+                    </h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 14px;">
+                        <div><strong>Session ID:</strong><br><code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;"><?php echo esc_html($session->session_id); ?></code></div>
+                        <div><strong>IP Address:</strong><br><?php echo esc_html($session->ip_address); ?></div>
+                        <div><strong>Device Type:</strong><br><?php echo esc_html($session->device_type); ?></div>
+                        <div><strong>Browser:</strong><br><?php echo esc_html($session->browser); ?></div>
+                        <div><strong>Operating System:</strong><br><?php echo esc_html($session->os); ?></div>
+                        <div><strong>Device Model:</strong><br><?php echo esc_html($session->device_model); ?></div>
+                    </div>
+                </div>
+                
+                <!-- Location & Network -->
+                <div class="info-section">
+                    <h3 style="margin-top: 0; color: #333; border-bottom: 2px solid #28a745; padding-bottom: 10px;">
+                        <i class="dashicons dashicons-location"></i> Location & Network
+                    </h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 14px;">
+                        <div><strong>Location:</strong><br><?php echo esc_html($session->location); ?></div>
+                        <div><strong>ISP:</strong><br><?php echo esc_html($session->isp); ?></div>
+                        <div><strong>Referrer:</strong><br><?php echo esc_html($session->referrer ?: 'Direct'); ?></div>
+                        <div><strong>Facebook ID:</strong><br><?php echo esc_html($session->facebook_id ?: 'N/A'); ?></div>
+                    </div>
+                </div>
+                
+                <!-- Activity Stats -->
+                <div class="info-section">
+                    <h3 style="margin-top: 0; color: #333; border-bottom: 2px solid #dc3545; padding-bottom: 10px;">
+                        <i class="dashicons dashicons-chart-line"></i> Activity Statistics
+                    </h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 14px;">
+                        <div><strong>Visit Count:</strong><br><span style="background: #0073aa; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold;"><?php echo esc_html($session->visit_count); ?></span></div>
+                        <div><strong>Pages Viewed:</strong><br><span style="background: #28a745; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold;"><?php echo esc_html($session->pages_viewed); ?></span></div>
+                        <div><strong>Time Spent:</strong><br>
+                            <?php 
+                            $minutes = floor($session->time_spent / 60);
+                            $seconds = $session->time_spent % 60;
+                            echo '<span style="background: #ffc107; color: #333; padding: 4px 8px; border-radius: 12px; font-weight: bold;">' . $minutes . 'm ' . $seconds . 's</span>';
+                            ?>
+                        </div>
+                        <div><strong>Purchased:</strong><br>
+                            <?php if ($session->has_purchased): ?>
+                                <span style="background: #28a745; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold;">✓ Yes</span>
+                            <?php else: ?>
+                                <span style="background: #dc3545; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold;">✗ No</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Device Details -->
+                <div class="info-section">
+                    <h3 style="margin-top: 0; color: #333; border-bottom: 2px solid #6f42c1; padding-bottom: 10px;">
+                        <i class="dashicons dashicons-smartphone"></i> Device Details
+                    </h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 14px;">
+                        <div><strong>Screen Size:</strong><br><?php echo esc_html($session->screen_size ?: 'N/A'); ?></div>
+                        <div><strong>Language:</strong><br><?php echo esc_html($session->language ?: 'N/A'); ?></div>
+                        <div><strong>Timezone:</strong><br><?php echo esc_html($session->timezone ?: 'N/A'); ?></div>
+                        <div><strong>Connection:</strong><br><?php echo esc_html($session->connection_type ?: 'N/A'); ?></div>
+                        <div><strong>Battery Level:</strong><br>
+                            <?php 
+                            if ($session->battery_level !== null) {
+                                $battery_percent = round($session->battery_level * 100);
+                                $charging_status = $session->battery_charging ? ' (Charging)' : ' (Discharging)';
+                                echo esc_html($battery_percent . '%' . $charging_status);
+                            } else {
+                                echo 'N/A';
+                            }
+                            ?>
+                        </div>
+                        <div><strong>Memory:</strong><br><?php echo esc_html($session->memory_info !== null ? $session->memory_info . 'GB' : 'N/A'); ?></div>
+                        <div><strong>CPU Cores:</strong><br><?php echo esc_html($session->cpu_cores !== null ? $session->cpu_cores : 'N/A'); ?></div>
+                        <div><strong>Touchscreen:</strong><br><?php echo esc_html($session->touchscreen_detected !== null ? ($session->touchscreen_detected ? 'Yes' : 'No') : 'N/A'); ?></div>
+                    </div>
+                </div>
             </div>
-        <?php else: ?>
-            <p>No session data found for the provided ID.</p>
+            
+            <!-- Timestamps -->
+            <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <strong>First Visit:</strong><br>
+                        <span style="color: #666;"><?php echo esc_html(date('F j, Y \a\t g:i A', strtotime($session->first_visit))); ?></span>
+                    </div>
+                    <div>
+                        <strong>Last Visit:</strong><br>
+                        <span style="color: #666;"><?php echo esc_html(date('F j, Y \a\t g:i A', strtotime($session->last_visit))); ?></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Customer Information (if purchased) -->
+        <?php if ($session->has_purchased): ?>
+        <div class="customer-info" style="background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #333; border-bottom: 2px solid #28a745; padding-bottom: 10px;">
+                <i class="dashicons dashicons-businessman"></i> Customer Information
+            </h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                <div><strong>Name:</strong><br><?php echo esc_html($session->customer_name); ?></div>
+                <div><strong>Phone:</strong><br><?php echo esc_html($session->customer_phone); ?></div>
+                <div><strong>Address:</strong><br><?php echo esc_html($session->customer_address); ?></div>
+            </div>
+        </div>
         <?php endif; ?>
-
-        <div class="event-log-table-container">
-            <h2>Event Log</h2>
-            <form method="GET" class="event-filter-form" id="event-filter-form">
+        
+        <!-- Events Filter -->
+        <div class="events-filter" style="background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #333;">
+                <i class="dashicons dashicons-filter"></i> Filter Events
+            </h3>
+            <form method="get" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
                 <input type="hidden" name="page" value="device-session-details">
                 <input type="hidden" name="session_id" value="<?php echo esc_attr($session_id); ?>">
                 
-                <div class="filter-group">
-                    <label for="filter_start_date">Start Date:</label>
-                    <input type="date" name="filter_start_date" id="filter_start_date" value="<?php echo esc_attr($filter_start_date); ?>">
-                    <label for="filter_start_time">Time:</label>
-                    <input type="time" name="filter_start_time" id="filter_start_time" value="<?php echo esc_attr($filter_start_time); ?>">
-                </div>
-
-                <div class="filter-group">
-                    <label for="filter_end_date">End Date:</label>
-                    <input type="date" name="filter_end_date" id="filter_end_date" value="<?php echo esc_attr($filter_end_date); ?>">
-                    <label for="filter_end_time">Time:</label>
-                    <input type="time" name="filter_end_time" id="filter_end_time" value="<?php echo esc_attr($filter_end_time); ?>">
-                </div>
-
-                <div class="filter-group preset-buttons">
-                    <button type="button" class="button" data-preset="today">Today</button>
-                    <button type="button" class="button" data-preset="yesterday">Yesterday</button>
-                    <button type="button" class="button" data-preset="last7days">Last 7 Days</button>
-                    <button type="button" class="button" data-preset="last15days">Last 15 Days</button>
-                    <button type="button" class="button" data-preset="last30days">Last 30 Days</button>
-                </div>
-
-                <div class="filter-group event-type-filters">
-                    <label>Event Types:</label>
-                    <?php foreach ($all_event_types as $type_slug => $type_label): ?>
-                        <label class="event-type-checkbox">
-                            <input type="checkbox" name="filter_event_types[]" value="<?php echo esc_attr($type_slug); ?>" <?php checked(in_array($type_slug, $filter_event_types), true); ?>>
-                            <?php echo esc_html($type_label); ?>
-                        </label>
-                    <?php endforeach; ?>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Start Date:</label>
+                    <input type="date" name="start_date" value="<?php echo esc_attr($start_date); ?>" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
                 
-                <input type="submit" class="button button-primary" value="Filter Events">
-                <a href="<?php echo esc_url(admin_url('admin.php?page=device-session-details&session_id=' . $session_id)); ?>" class="button">Reset Filter</a>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">End Date:</label>
+                    <input type="date" name="end_date" value="<?php echo esc_attr($end_date); ?>" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Event Type:</label>
+                    <select name="event_type" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">All Events</option>
+                        <?php foreach ($event_types as $type): ?>
+                            <option value="<?php echo esc_attr($type); ?>" <?php selected($event_type, $type); ?>><?php echo esc_html($type); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                
+                <div>
+                    <button type="submit" class="button button-primary" style="padding: 8px 16px; height: auto;">
+                        <i class="dashicons dashicons-search"></i> Filter Events
+                    </button>
+                    <a href="?page=device-session-details&session_id=<?php echo urlencode($session_id); ?>" class="button" style="padding: 8px 16px; height: auto; margin-left: 10px;">
+                        <i class="dashicons dashicons-dismiss"></i> Clear
+                    </a>
+                </div>
             </form>
-
-            <?php if (!empty($session_events)): ?>
-                <table class="event-log-table wp-list-table widefat fixed striped">
+        </div>
+        
+        <!-- Events Table -->
+        <div class="events-table" style="background: white; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden;">
+            <div style="padding: 20px; border-bottom: 1px solid #e0e0e0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <h3 style="margin: 0;">
+                    <i class="dashicons dashicons-list-view"></i>
+                    Event Log (<?php echo count($events); ?> events)
+                </h3>
+            </div>
+            
+            <?php if (empty($events)): ?>
+                <div style="text-align: center; padding: 60px; color: #666;">
+                    <i class="dashicons dashicons-info" style="font-size: 48px; margin-bottom: 20px; opacity: 0.5;"></i>
+                    <h3>No events found</h3>
+                    <p>No events match your current filters.</p>
+                </div>
+            <?php else: ?>
+                <table class="wp-list-table widefat fixed striped" style="border: none;">
                     <thead>
                         <tr>
-                            <th>Timestamp</th>
-                            <th>Event Type</th>
-                            <th>Section/Details</th>
-                            <th>Value/Time Spent</th>
+                            <th style="background: #f8f9fa;">Timestamp</th>
+                            <th style="background: #f8f9fa;">Event Type</th>
+                            <th style="background: #f8f9fa;">Event Name</th>
+                            <th style="background: #f8f9fa;">Value/Details</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($session_events as $event): ?>
+                        <?php foreach ($events as $event): ?>
                             <tr>
-                                <td><?php echo date('d M Y, H:i:s', strtotime($event->timestamp)); ?></td>
-                                <td><?php echo esc_html($event->event_type); ?></td>
+                                <td style="font-family: monospace; font-size: 12px;">
+                                    <?php echo esc_html(date('M j, Y H:i:s', strtotime($event->timestamp))); ?>
+                                </td>
                                 <td>
-                                    <?php 
-                                    // Display event_name as Section/Details
-                                    echo esc_html($event->event_name);
-                                    ?>
+                                    <span style="background: #0073aa; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                                        <?php echo esc_html($event->event_type); ?>
+                                    </span>
                                 </td>
-                                <td class="event-value-col">
-                                    <?php 
-                                    if ($event->event_type === 'section_time_spent' || $event->event_type === 'video_play_time') {
-                                        echo esc_html(round(floatval($event->event_value), 2)) . 's';
-                                    } else if ($event->event_type === 'scroll_depth') {
-                                        echo esc_html(round(floatval($event->event_value), 2)) . '%';
-                                    } else if ($event->event_type === 'battery_status_change') {
-                                        $battery_data = json_decode($event->event_value, true);
-                                        if ($battery_data) {
-                                            echo (isset($battery_data['level']) ? round($battery_data['level'] * 100) . '%' : 'N/A') . ' ' . (isset($battery_data['charging']) ? ($battery_data['charging'] ? '(Charging)' : '(Discharging)') : '');
-                                        } else {
-                                            echo esc_html($event->event_value);
-                                        }
-                                    } else {
-                                        echo esc_html($event->event_value);
-                                    }
-                                    ?>
-                                </td>
+                                <td style="font-weight: 500;"><?php echo esc_html($event->event_name); ?></td>
+                                <td style="font-size: 13px; color: #666;"><?php echo esc_html($event->event_value); ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
-            <?php else: ?>
-                <p>No events found for this session with the selected filters.</p>
             <?php endif; ?>
         </div>
     </div>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const form = document.getElementById('event-filter-form');
-        const startDateInput = document.getElementById('filter_start_date');
-        const startTimeInput = document.getElementById('filter_start_time');
-        const endDateInput = document.getElementById('filter_end_date');
-        const endTimeInput = document.getElementById('filter_end_time');
-        const presetButtons = document.querySelectorAll('.preset-buttons .button');
-
-        presetButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const preset = this.dataset.preset;
-                const today = new Date();
-                let startDate = new Date();
-                let endDate = new Date();
-
-                // Reset time inputs for presets
-                startTimeInput.value = '00:00';
-                endTimeInput.value = '23:59';
-
-                switch (preset) {
-                    case 'today':
-                        // Already set to today
-                        break;
-                    case 'yesterday':
-                        startDate.setDate(today.getDate() - 1);
-                        endDate.setDate(today.getDate() - 1);
-                        break;
-                    case 'last7days':
-                        startDate.setDate(today.getDate() - 6); // Today is day 7
-                        break;
-                    case 'last15days':
-                        startDate.setDate(today.getDate() - 14); // Today is day 15
-                        break;
-                    case 'last30days':
-                        startDate.setDate(today.getDate() - 29); // Today is day 30
-                        break;
-                }
-
-                startDateInput.value = startDate.toISOString().split('T')[0];
-                endDateInput.value = endDate.toISOString().split('T')[0];
-
-                // Submit the form after setting values
-                form.submit();
-            });
-        });
-    });
-    </script>
+    
+    <style>
+    .session-overview .info-section {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 4px solid #0073aa;
+    }
+    
+    .session-overview .info-section:nth-child(2) {
+        border-left-color: #28a745;
+    }
+    
+    .session-overview .info-section:nth-child(3) {
+        border-left-color: #dc3545;
+    }
+    
+    .session-overview .info-section:nth-child(4) {
+        border-left-color: #6f42c1;
+    }
+    
+    .events-filter input:focus,
+    .events-filter select:focus {
+        border-color: #0073aa;
+        box-shadow: 0 0 0 1px #0073aa;
+        outline: none;
+    }
+    
+    .events-table table th {
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .events-table table tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .customer-info {
+        border-left: 4px solid #28a745;
+    }
+    </style>
     <?php
 }
 
@@ -2147,4 +2390,87 @@ if ( ! class_exists( 'WP_Bootstrap_Navwalker' ) ) {
             $output .= apply_filters( 'walker_nav_menu_start_el', $item_output, $item, $depth, $args );
         }
     }
+}
+
+// Live visitor tracking functions
+function get_live_visitors() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'device_tracking';
+    
+    // Get visitors active in last 5 minutes
+    $five_minutes_ago = date('Y-m-d H:i:s', strtotime('-5 minutes'));
+    
+    $live_visitors = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM $table_name 
+        WHERE last_visit >= %s 
+        ORDER BY last_visit DESC",
+        $five_minutes_ago
+    ));
+    
+    return $live_visitors;
+}
+
+function update_visitor_activity() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'alhadiya_activity_nonce')) {
+        wp_send_json_error('Security check failed');
+        return;
+    }
+    
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'device_tracking';
+    
+    $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
+    
+    if (!empty($session_id)) {
+        $wpdb->update(
+            $table_name,
+            array('last_visit' => current_time('mysql')),
+            array('session_id' => $session_id)
+        );
+        wp_send_json_success('Activity updated');
+    } else {
+        wp_send_json_error('No session ID provided');
+    }
+}
+add_action('wp_ajax_update_visitor_activity', 'update_visitor_activity');
+add_action('wp_ajax_nopriv_update_visitor_activity', 'update_visitor_activity');
+
+function get_visitor_activity_stats() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'device_tracking';
+    
+    // Get current online visitors (last 5 minutes)
+    $five_minutes_ago = date('Y-m-d H:i:s', strtotime('-5 minutes'));
+    $online_visitors = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $table_name WHERE last_visit >= %s",
+        $five_minutes_ago
+    ));
+    
+    // Get today's total visitors
+    $today_start = date('Y-m-d 00:00:00');
+    $today_visitors = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(DISTINCT session_id) FROM $table_name WHERE first_visit >= %s",
+        $today_start
+    ));
+    
+    // Get this week's total visitors
+    $week_start = date('Y-m-d 00:00:00', strtotime('monday this week'));
+    $week_visitors = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(DISTINCT session_id) FROM $table_name WHERE first_visit >= %s",
+        $week_start
+    ));
+    
+    // Get this month's total visitors
+    $month_start = date('Y-m-01 00:00:00');
+    $month_visitors = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(DISTINCT session_id) FROM $table_name WHERE first_visit >= %s",
+        $month_start
+    ));
+    
+    return array(
+        'online' => intval($online_visitors),
+        'today' => intval($today_visitors),
+        'week' => intval($week_visitors),
+        'month' => intval($month_visitors)
+    );
 }
