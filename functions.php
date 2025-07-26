@@ -2481,11 +2481,33 @@ function get_visitor_activity_stats() {
 
 // Initialize server-side session for GDPR-friendly tracking
 function alhadiya_init_server_session() {
-    if (!session_id()) {
-        wp_session_start();
+    // Use WooCommerce session if available, otherwise fallback to PHP session
+    if (class_exists('WooCommerce') && function_exists('WC')) {
+        try {
+            // WooCommerce session is available
+            if (!WC()->session) {
+                WC()->session = new WC_Session_Handler();
+            }
+            
+            // Store our custom session ID in WooCommerce session
+            if (!WC()->session->get('alhadiya_session_id')) {
+                $custom_session_id = 'ss_' . uniqid() . '_' . time();
+                WC()->session->set('alhadiya_session_id', $custom_session_id);
+                return $custom_session_id;
+            }
+            
+            return WC()->session->get('alhadiya_session_id');
+        } catch (Exception $e) {
+            // Fallback to PHP session if WooCommerce session fails
+            error_log('WooCommerce session error: ' . $e->getMessage());
+        }
     }
     
-    // Generate unique session ID if not exists
+    // Fallback to PHP session
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    
     if (!isset($_SESSION['alhadiya_session_id'])) {
         $_SESSION['alhadiya_session_id'] = 'ss_' . uniqid() . '_' . time();
     }
@@ -2804,13 +2826,33 @@ function alhadiya_add_server_tracking_nonce() {
 function alhadiya_init_server_tracking() {
     // Create server events table
     alhadiya_create_server_events_table();
-    
-    // Initialize session
-    alhadiya_init_server_session();
 }
 
-// Hook for initialization
+// Hook for initialization - separate session initialization
 add_action('init', 'alhadiya_init_server_tracking');
+
+// Initialize WooCommerce session properly
+function alhadiya_init_woocommerce_session() {
+    if (class_exists('WooCommerce') && function_exists('WC')) {
+        try {
+            // Ensure WooCommerce is fully loaded
+            if (!did_action('woocommerce_init')) {
+                return;
+            }
+            
+            // Initialize our session
+            alhadiya_init_server_session();
+        } catch (Exception $e) {
+            error_log('WooCommerce session initialization error: ' . $e->getMessage());
+        }
+    }
+}
+
+if (class_exists('WooCommerce')) {
+    add_action('woocommerce_init', 'alhadiya_init_woocommerce_session');
+} else {
+    add_action('init', 'alhadiya_init_server_session');
+}
 
 // Add tracking settings to customizer
 add_action('customize_register', 'alhadiya_add_tracking_settings');
