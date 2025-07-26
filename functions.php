@@ -44,7 +44,8 @@ function alhadiya_scripts() {
         'device_info_nonce' => wp_create_nonce('alhadiya_device_info_nonce'), // New nonce for device info
         'event_nonce' => wp_create_nonce('alhadiya_event_nonce'), // New nonce for custom events
         'screen_size_nonce' => wp_create_nonce('alhadiya_screen_size_nonce'), // New nonce for screen size
-        'activity_nonce' => wp_create_nonce('alhadiya_activity_nonce') // New nonce for activity tracking
+        'activity_nonce' => wp_create_nonce('alhadiya_activity_nonce'), // New nonce for activity tracking
+        'server_event_nonce' => wp_create_nonce('alhadiya_server_event_nonce') // Server-side tracking nonce
     ));
 }
 add_action('wp_enqueue_scripts', 'alhadiya_scripts');
@@ -3310,12 +3311,4 @@ function alhadiya_server_events_dashboard() {
     <?php
 }
 
-if (!function_exists('alhadiya_add_server_tracking_nonce')) {
-    function alhadiya_add_server_tracking_nonce() {
-        wp_localize_script('jquery', 'ajax_object', array(
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'server_event_nonce' => wp_create_nonce('alhadiya_server_event_nonce')
-        ));
-    }
-}
-add_action('wp_enqueue_scripts', 'alhadiya_add_server_tracking_nonce', 20);
+
