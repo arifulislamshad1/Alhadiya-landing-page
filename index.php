@@ -567,6 +567,7 @@ var player;
 var videoPlayStartTime;
 var videoCurrentTime = 0;
 var videoDuration = 0;
+var videoTrackingEnabled = <?php echo get_theme_mod('enable_video_tracking', true) ? 'true' : 'false'; ?>;
 
 function onYouTubeIframeAPIReady() {
     const videoElement = document.getElementById('youtube-video-player');
@@ -582,10 +583,14 @@ function onYouTubeIframeAPIReady() {
 
 function onPlayerReady(event) {
     videoDuration = player.getDuration();
-    trackCustomEvent('video_ready', 'YouTube Video Ready', `Duration: ${videoDuration.toFixed(2)}s`);
+    if (videoTrackingEnabled) {
+        trackCustomEvent('video_ready', 'YouTube Video Ready', `Duration: ${videoDuration.toFixed(2)}s`);
+    }
 }
 
 function onPlayerStateChange(event) {
+    if (!videoTrackingEnabled) return;
+    
     if (event.data == YT.PlayerState.PLAYING) {
         if (!videoPlayStartTime) {
             videoPlayStartTime = Date.now();
@@ -612,6 +617,12 @@ function onPlayerStateChange(event) {
 
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Check tracking settings
+    var deviceTrackingEnabled = <?php echo get_theme_mod('enable_device_tracking', true) ? 'true' : 'false'; ?>;
+    var customEventsTrackingEnabled = <?php echo get_theme_mod('enable_custom_events_tracking', true) ? 'true' : 'false'; ?>;
+    var deviceDetailsTrackingEnabled = <?php echo get_theme_mod('enable_device_details_tracking', true) ? 'true' : 'false'; ?>;
+    var timeSpentTrackingEnabled = <?php echo get_theme_mod('enable_time_spent_tracking', true) ? 'true' : 'false'; ?>;
+    
     // Initialize Swiper with enhanced autoplay
     const swiper = new Swiper('.reviewSwiper', {
         slidesPerView: 1,
@@ -642,7 +653,622 @@ document.addEventListener('DOMContentLoaded', function() {
             },
         },
     });
+    
+    // Only initialize tracking if device tracking is enabled
+    if (deviceTrackingEnabled) {
+        // Initialize device tracking
+        initializeDeviceTracking();
+        
+        // Initialize time spent tracking if enabled
+        if (timeSpentTrackingEnabled) {
+            initializeTimeSpentTracking();
+        }
+        
+        // Initialize device details tracking if enabled
+        if (deviceDetailsTrackingEnabled) {
+            initializeDeviceDetailsTracking();
+        }
+    }
+    
+    // Only track custom events if enabled
+    if (customEventsTrackingEnabled) {
+        // Helper to get cookie value (still needed for session_id)
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
 
+        // Helper to track custom events
+        function trackCustomEvent(eventType, eventName, eventValue = '') {
+            if (typeof ajax_object === 'undefined') {
+                return;
+            }
+            const sessionId = getCookie('device_session');
+            if (!sessionId) return;
+
+            jQuery.post(ajax_object.ajax_url, {
+                action: 'track_custom_event',
+                session_id: sessionId,
+                event_type: eventType,
+                event_name: eventName,
+                event_value: eventValue,
+                nonce: ajax_object.event_nonce // Use the new nonce
+            });
+        }
+
+        // NEW: Function to collect and send client-side device info
+        async function collectAndSendClientDeviceInfo() {
+            if (typeof ajax_object === 'undefined') {
+                return;
+            }
+            const sessionId = getCookie('device_session');
+            if (!sessionId) return;
+
+            const deviceInfo = {
+                session_id: sessionId,
+                language: navigator.language,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                connection_type: navigator.connection ? navigator.connection.effectiveType : 'N/A',
+                memory_info: navigator.deviceMemory || 'N/A',
+                cpu_cores: navigator.hardwareConcurrency || 'N/A',
+                touchscreen_detected: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0) ? 1 : 0,
+                nonce: ajax_object.device_info_nonce // Use the new nonce
+            };
+
+            // Battery Info (async)
+            if ('getBattery' in navigator) {
+                try {
+                    const battery = await navigator.getBattery();
+                    deviceInfo.battery_level = battery.level;
+                    deviceInfo.battery_charging = battery.charging ? 1 : 0;
+
+                    // Track battery changes as custom events
+                    battery.addEventListener('chargingchange', () => {
+                        trackCustomEvent('battery_status_change', 'Battery Charging Status Changed', JSON.stringify({
+                            level: battery.level,
+                            charging: battery.charging
+                        }));
+                    });
+                    battery.addEventListener('levelchange', () => {
+                        trackCustomEvent('battery_status_change', 'Battery Level Changed', JSON.stringify({
+                            level: battery.level,
+                            charging: battery.charging
+                        }));
+                    });
+
+                } catch (e) {
+                    console.warn('Battery API not available or permission denied:', e);
+                    deviceInfo.battery_level = null;
+                    deviceInfo.battery_charging = null;
+                }
+            } else {
+                deviceInfo.battery_level = null;
+                deviceInfo.battery_charging = null;
+            }
+
+            // Send static device info to server
+            jQuery.post(ajax_object.ajax_url, {
+                action: 'update_client_device_details',
+                ...deviceInfo
+            }, function(response) {
+                if (response.success) {
+                    console.log('Client device info updated:', response.data);
+                } else {
+                    console.error('Failed to update client device info:', response.data);
+                }
+            });
+        }
+
+        // Call the new function on DOMContentLoaded
+        collectAndSendClientDeviceInfo();
+
+        // Track Swiper slide changes
+        swiper.on('slideChange', function () {
+            trackCustomEvent('swiper_slide_change', 'Swiper Slide Changed', 'Slide ' + (this.realIndex + 1));
+        });
+        // Track Swiper navigation clicks
+        document.querySelectorAll('.swiper-button-next, .swiper-button-prev').forEach(button => {
+            button.addEventListener('click', function() {
+                trackCustomEvent('swiper_nav_click', 'Swiper Navigation Click', this.classList.contains('swiper-button-next') ? 'Next' : 'Prev');
+            });
+        });
+        // Track Swiper pagination clicks
+        document.querySelectorAll('.swiper-pagination-bullet').forEach(bullet => {
+            bullet.addEventListener('click', function() {
+                trackCustomEvent('swiper_pagination_click', 'Swiper Pagination Click', 'Bullet ' + (Array.from(this.parentNode.children).indexOf(this) + 1));
+            });
+        });
+
+        // Intersection Observer for section views and time spent
+        const sections = document.querySelectorAll('.Corse_container, .review-slider, .faq_section, .order_section, .video-container');
+        const sectionTimers = {};
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                const sectionId = entry.target.id;
+                if (entry.isIntersecting) {
+                    // Section entered viewport
+                    if (!sectionTimers[sectionId]) {
+                        sectionTimers[sectionId] = Date.now();
+                        trackCustomEvent('section_view', 'Section Viewed', sectionId);
+                    }
+                } else {
+                    // Section left viewport
+                    if (sectionTimers[sectionId]) {
+                        const timeSpent = (Date.now() - sectionTimers[sectionId]) / 1000; // in seconds
+                        // Changed eventName to include sectionId directly for clarity in logs
+                        trackCustomEvent('section_time_spent', `Time Spent on Section: ${sectionId}`, `${timeSpent.toFixed(2)}s`);
+                        delete sectionTimers[sectionId]; // Reset timer
+                    }
+                }
+            });
+        }, { threshold: 0.5 }); // Trigger when 50% of the section is visible
+
+        sections.forEach(section => {
+            observer.observe(section);
+        });
+
+        // Intersection Observer for floating buttons (call and WhatsApp)
+        const floatingButtons = document.querySelectorAll('.callbtnlaptop, .float');
+        const floatingButtonTimers = {};
+
+        const floatingButtonObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                const buttonName = entry.target.classList.contains('callbtnlaptop') ? 'Call Button' : 'WhatsApp Button';
+                if (entry.isIntersecting) {
+                    if (!floatingButtonTimers[buttonName]) {
+                        floatingButtonTimers[buttonName] = Date.now();
+                        trackCustomEvent('button_visible', `${buttonName} Visible`, 'Entered Viewport');
+                    }
+                } else {
+                    if (floatingButtonTimers[buttonName]) {
+                        const timeSpent = (Date.now() - floatingButtonTimers[buttonName]) / 1000;
+                        trackCustomEvent('button_time_spent', `Time Spent on ${buttonName}`, `${timeSpent.toFixed(2)}s`);
+                        delete floatingButtonTimers[buttonName];
+                    }
+                }
+            });
+        }, { threshold: 0.5 }); // Trigger when 50% of the button is visible
+
+        floatingButtons.forEach(button => {
+            floatingButtonObserver.observe(button);
+        });
+
+        // Track floating button clicks
+        document.querySelector('.callbtnlaptop')?.addEventListener('click', function() {
+            trackCustomEvent('button_click', 'Call Button Clicked', 'Floating Call Button');
+        });
+        document.querySelector('.float')?.addEventListener('click', function() {
+            trackCustomEvent('button_click', 'WhatsApp Button Clicked', 'Floating WhatsApp Button');
+        });
+
+        // Track scroll depth (enhanced)
+        let lastScrollDepth = 0;
+        window.addEventListener('scroll', function() {
+            const scrollY = window.scrollY;
+            const docHeight = document.documentElement.scrollHeight;
+            const windowHeight = window.innerHeight;
+            const currentScrollDepth = Math.min(100, (scrollY / (docHeight - windowHeight)) * 100);
+
+            if (Math.abs(currentScrollDepth - lastScrollDepth) >= 10) { // Track every 10% change
+                trackCustomEvent('scroll_depth', 'Page Scroll Depth', currentScrollDepth.toFixed(2));
+                lastScrollDepth = currentScrollDepth;
+            }
+        });
+
+        // Track click position
+        document.addEventListener('click', function(event) {
+            trackCustomEvent('click_position', 'Click Position', `X:${event.clientX}, Y:${event.clientY}`);
+        });
+
+        // Track last key press
+        document.addEventListener('keydown', function(event) {
+            trackCustomEvent('key_press', 'Key Pressed', event.key);
+        });
+
+
+        // Product selection and price calculation
+        const productRadios = document.querySelectorAll('input[name="product_id"]');
+        const deliveryRadios = document.querySelectorAll('input[name="delivery_zone"]');
+        const paymentRadios = document.querySelectorAll('input[name="payment_method"]');
+        
+        // Initialize with first product
+        if (productRadios.length > 0) {
+            updateProductInfo(productRadios[0].value);
+        }
+        
+        // Product selection handler
+        productRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.checked) {
+                    updateProductInfo(this.value);
+                    // GA4 Event: select_content
+                    if (typeof gtag === 'function') {
+                        gtag('event', 'select_content', {
+                            content_type: 'product',
+                            item_id: this.value,
+                            item_name: document.querySelector(`#pro_id${this.value} + .products_dets .product_description h2`).textContent,
+                            value: parseFloat(document.querySelector(`#pro_id${this.value} + .products_dets .price .alex-mt strong`).textContent.replace('৳ ', '')),
+                            currency: 'BDT'
+                        });
+                    }
+                    // FB Pixel Event: ViewContent (or AddToCart if user intends to buy)
+                    if (typeof fbq === 'function') {
+                        fbq('track', 'ViewContent', {
+                            content_ids: [this.value],
+                            content_name: document.querySelector(`#pro_id${this.value} + .products_dets .product_description h2`).textContent,
+                            content_type: 'product',
+                            value: parseFloat(document.querySelector(`#pro_id${this.value} + .products_dets .price .alex-mt strong`).textContent.replace('৳ ', '')),
+                            currency: 'BDT'
+                        });
+                    }
+                    trackCustomEvent('product_select', 'Product Selected', `Product ID: ${this.value}, Name: ${document.querySelector(`#pro_id${this.value} + .products_dets .product_description h2`).textContent}`);
+                }
+            });
+        });
+        
+        // Delivery zone change handler
+        deliveryRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                updateTotalAmount();
+                trackCustomEvent('delivery_option_select', 'Delivery Option Selected', this.id);
+            });
+        });
+        
+        // Payment method change handler
+        paymentRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                showPaymentInstructions(this.value);
+                trackCustomEvent('payment_method_select', 'Payment Method Selected', this.value);
+            });
+        });
+        
+        // Initialize payment instructions
+        showPaymentInstructions('pay_later');
+        
+        function updateProductInfo(productId) {
+            // Get product data via AJAX
+            if (typeof jQuery !== 'undefined' && typeof ajax_object !== 'undefined') {
+                jQuery.post(ajax_object.ajax_url, {
+                    action: 'get_wc_product_data',
+                    id: productId,
+                    nonce: ajax_object.nonce
+                }, function(response) {
+                    if (response && response.name) {
+                        document.querySelector('.name_cart').textContent = response.name;
+                        document.querySelectorAll('.price_cart').forEach(el => {
+                            el.textContent = response.price;
+                        });
+                        updateTotalAmount();
+                        document.querySelector('.invoice-bills').style.display = 'block';
+                    }
+                });
+            }
+        }
+        
+        function updateTotalAmount() {
+            const selectedDelivery = document.querySelector('input[name="delivery_zone"]:checked');
+            const productPrice = parseFloat(document.querySelector('.price_cart')?.textContent) || 0;
+            
+            let deliveryCharge = 0;
+            if (selectedDelivery && typeof ajax_object !== 'undefined') {
+                if (selectedDelivery.value === '1') {
+                    deliveryCharge = parseFloat(ajax_object.dhaka_delivery_charge) || 0;
+                } else if (selectedDelivery.value === '2') {
+                    deliveryCharge = parseFloat(ajax_object.outside_dhaka_delivery_charge) || 0;
+                }
+            }
+            
+            const totalAmount = productPrice + deliveryCharge;
+            
+            const deliveryChargeEl = document.getElementById('delivery_charge');
+            const totalAmountEl = document.getElementById('total_amount');
+            
+            if (deliveryChargeEl) deliveryChargeEl.textContent = deliveryCharge;
+            if (totalAmountEl) totalAmountEl.textContent = totalAmount;
+        }
+        
+        function showPaymentInstructions(method) {
+            // Hide all instructions and remove required from their transaction inputs
+            document.querySelectorAll('.payment-instruction').forEach(instruction => {
+                instruction.style.display = 'none';
+                const transactionInput = instruction.querySelector('input[name="transaction_number"]');
+                if (transactionInput) {
+                    transactionInput.removeAttribute('required');
+                    transactionInput.value = ''; // Clear value when hidden
+                }
+            });
+            
+            // Show selected instruction and set required for its transaction input if needed
+            const selectedInstruction = document.getElementById(method + '-instruction');
+            if (selectedInstruction) {
+                selectedInstruction.style.display = 'block';
+                const transactionInput = selectedInstruction.querySelector('input[name="transaction_number"]');
+                if (transactionInput && method !== 'pay_later') {
+                    transactionInput.setAttribute('required', 'required');
+                }
+            }
+        }
+        
+        // Track form field interactions
+        document.querySelectorAll('input[name="billing_first_name"], input[name="billing_phone"], textarea[name="billing_address_1"]').forEach(input => {
+            input.addEventListener('focus', function() {
+                trackCustomEvent('form_field_focus', 'Form Field Focused', this.name);
+            });
+            input.addEventListener('change', function() {
+                trackCustomEvent('form_field_change', 'Form Field Changed', `${this.name}: ${this.value.substring(0, 50)}`);
+            });
+        });
+
+        // Track FAQ accordion clicks
+        document.querySelectorAll('.accordion-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const faqTitle = this.textContent.trim();
+                const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                trackCustomEvent('faq_toggle', isExpanded ? 'FAQ Closed' : 'FAQ Opened', faqTitle);
+            });
+        });
+
+        // Enhanced form submission with better error handling
+        const orderForm = document.getElementById('wc-order-form');
+        if (orderForm) {
+            orderForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const submitBtn = document.getElementById('submit-order-btn');
+                const originalText = submitBtn.innerHTML;
+                
+                // Show loading state
+                submitBtn.classList.add('btn-loading');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> প্রসেসিং...';
+                
+                const formData = new FormData(this);
+                formData.append('action', 'submit_wc_order');
+                
+                // GA4 Event: begin_checkout
+                if (typeof gtag === 'function') {
+                    const items = [{
+                        item_id: formData.get('product_id'),
+                        item_name: document.querySelector(`#pro_id${formData.get('product_id')} + .products_dets .product_description h2`).textContent,
+                        price: parseFloat(document.querySelector(`#pro_id${formData.get('product_id')} + .products_dets .price .alex-mt strong`).textContent.replace('৳ ', '')),
+                        quantity: 1
+                    }];
+                    gtag('event', 'begin_checkout', {
+                        currency: 'BDT',
+                        value: parseFloat(document.getElementById('total_amount').textContent),
+                        items: items
+                    });
+                }
+
+                // FB Pixel Event: InitiateCheckout
+                if (typeof fbq === 'function') {
+                    fbq('track', 'InitiateCheckout', {
+                        content_ids: [formData.get('product_id')],
+                        content_type: 'product',
+                        value: parseFloat(document.getElementById('total_amount').textContent),
+                        currency: 'BDT'
+                    });
+                }
+                trackCustomEvent('order_form_submit', 'Order Form Submitted');
+
+                if (typeof ajax_object !== 'undefined') {
+                    fetch(ajax_object.ajax_url, {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Store form data for invoice
+                            const customerName = formData.get('billing_first_name');
+                            const customerPhone = formData.get('billing_phone');
+                            
+                            showInvoiceModal({
+                                ...data.data,
+                                customer_name: customerName,
+                                customer_phone: customerPhone
+                            });
+                            
+                            this.reset();
+                            // Reset to first product
+                            if (productRadios.length > 0) {
+                                productRadios[0].checked = true;
+                                updateProductInfo(productRadios[0].value);
+                            }
+                            // Reset to Pay Later
+                            const payLaterRadio = document.getElementById('pay_later');
+                            if (payLaterRadio) {
+                                payLaterRadio.checked = true;
+                                showPaymentInstructions('pay_later');
+                            }
+                            trackCustomEvent('order_success', 'Order Placed Successfully', `Order ID: ${data.data.order_id}`);
+
+                            // Save form data to localStorage for auto-fill
+                            localStorage.setItem('billing_first_name', customerName);
+                            localStorage.setItem('billing_phone', customerPhone);
+                            localStorage.setItem('billing_address_1', formData.get('billing_address_1'));
+
+                        } else {
+                            alert(data.data || 'অর্ডার প্রসেসিং এ সমস্যা হয়েছে');
+                            trackCustomEvent('order_failure', 'Order Submission Failed', data.data || 'Unknown error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('অর্ডার প্রসেসিং এ সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+                        trackCustomEvent('order_error', 'Order Submission Error', error.message);
+                    })
+                    .finally(() => {
+                        // Reset button state
+                        submitBtn.classList.remove('btn-loading');
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalText;
+                    });
+                }
+            });
+        }
+
+        // Track order buttons clicks
+        document.getElementById('order-button-top')?.addEventListener('click', function() {
+            trackCustomEvent('button_click', 'Order Button Clicked', 'Top Order Button');
+        });
+        document.getElementById('order-button-middle')?.addEventListener('click', function() {
+            trackCustomEvent('button_click', 'Order Button Clicked', 'Middle Order Button');
+        });
+        document.getElementById('submit-order-btn')?.addEventListener('click', function() {
+            trackCustomEvent('button_click', 'Order Button Clicked', 'Submit Order Button');
+        });
+
+        // Auto-fill form fields from localStorage
+        const billingFirstNameInput = document.querySelector('input[name="billing_first_name"]');
+        const billingPhoneInput = document.querySelector('input[name="billing_phone"]');
+        const billingAddressInput = document.querySelector('textarea[name="billing_address_1"]');
+
+        if (billingFirstNameInput && localStorage.getItem('billing_first_name')) {
+            billingFirstNameInput.value = localStorage.getItem('billing_first_name');
+        }
+        if (billingPhoneInput && localStorage.getItem('billing_phone')) {
+            billingPhoneInput.value = localStorage.getItem('billing_phone');
+        }
+        if (billingAddressInput && localStorage.getItem('billing_address_1')) {
+            billingAddressInput.value = localStorage.getItem('billing_address_1');
+        }
+
+        // Send screen size to server once per session
+        const sessionId = getCookie('device_session');
+        if (sessionId && typeof jQuery !== 'undefined' && typeof ajax_object !== 'undefined') {
+            const screenWidth = window.screen.width;
+            const screenHeight = window.screen.height;
+            const screenSize = `${screenWidth}x${screenHeight}`;
+
+            // Check if screen size is already stored in session (or a temporary cookie) to avoid redundant updates
+            if (!sessionStorage.getItem('screen_size_sent_' + sessionId)) {
+                jQuery.post(ajax_object.ajax_url, {
+                    action: 'update_device_screen_size',
+                    session_id: sessionId,
+                    screen_size: screenSize,
+                    nonce: ajax_object.screen_size_nonce // Use the new nonce
+                }, function(response) {
+                    if (response.success) {
+                        sessionStorage.setItem('screen_size_sent_' + sessionId, 'true');
+                    }
+                });
+            }
+        }
+    }
+
+    function copyNumber(elementId) {
+        const numberElement = document.getElementById(elementId);
+        if (!numberElement) return;
+        
+        const number = numberElement.textContent;
+        
+        navigator.clipboard.writeText(number).then(function() {
+            // Show success feedback
+            const button = numberElement.nextElementSibling;
+            if (button) {
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                button.style.background = '#28a745';
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.style.background = '#dd0055';
+                }, 2000);
+            }
+        }).catch(function(err) {
+            console.error('Could not copy text: ', err);
+            alert('কপি করতে সমস্যা হয়েছে। নাম্বারটি ম্যানুয়ালি কপি করুন: ' + number);
+        });
+    }
+
+    function showInvoiceModal(data) {
+        const orderIdEl = document.getElementById('invoice-order-id');
+        const customerNameEl = document.getElementById('invoice-customer-name');
+        const customerPhoneEl = document.getElementById('invoice-customer-phone');
+        const paymentMethodEl = document.getElementById('invoice-payment-method');
+        const transactionNumberEl = document.getElementById('invoice-transaction-number');
+        const totalAmountEl = document.getElementById('invoice-total-amount');
+        
+        if (orderIdEl) orderIdEl.textContent = '#' + (data.order_id || 'N/A');
+        if (customerNameEl) customerNameEl.textContent = data.customer_name || 'N/A';
+        if (customerPhoneEl) customerPhoneEl.textContent = data.customer_phone || 'N/A';
+        if (paymentMethodEl) paymentMethodEl.textContent = data.payment_method || 'N/A';
+        if (transactionNumberEl) transactionNumberEl.textContent = data.transaction_number || 'N/A';
+        if (totalAmountEl) {
+            const totalAmount = document.getElementById('total_amount');
+            totalAmountEl.textContent = '৳' + (totalAmount ? totalAmount.textContent : '0');
+        }
+        
+        const modal = document.getElementById('invoice-modal');
+        if (modal) modal.classList.add('show');
+    }
+
+    function closeInvoiceModal() {
+        const modal = document.getElementById('invoice-modal');
+        if (modal) modal.classList.remove('show');
+    }
+
+    // Close modal when clicking outside
+    const invoiceModal = document.getElementById('invoice-modal');
+    if (invoiceModal) {
+        invoiceModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeInvoiceModal();
+            }
+        });
+    }
+
+    // Ensure time spent for visible sections and buttons is sent on page unload
+    window.addEventListener('beforeunload', function() {
+        // Track time spent for any currently visible sections
+        for (const sectionId in sectionTimers) {
+            if (sectionTimers.hasOwnProperty(sectionId)) {
+                const timeSpent = (Date.now() - sectionTimers[sectionId]) / 1000;
+                // Use navigator.sendBeacon for reliable data transmission on unload
+                if (navigator.sendBeacon) {
+                    const formData = new FormData();
+                    formData.append('action', 'track_custom_event');
+                    formData.append('session_id', getCookie('device_session'));
+                    formData.append('event_type', 'section_time_spent');
+                    formData.append('event_name', `Time Spent on Section: ${sectionId} (Unload)`);
+                    formData.append('event_value', `${timeSpent.toFixed(2)}s`);
+                    formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
+                    navigator.sendBeacon(ajax_object.ajax_url, formData);
+                } else {
+                    // Fallback for older browsers (less reliable on unload)
+                    trackCustomEvent('section_time_spent', `Time Spent on Section: ${sectionId} (Unload)`, `${timeSpent.toFixed(2)}s`);
+                }
+            }
+        }
+
+        // Track time spent for any currently visible floating buttons
+        for (const buttonName in floatingButtonTimers) {
+            if (floatingButtonTimers.hasOwnProperty(buttonName)) {
+                const timeSpent = (Date.now() - floatingButtonTimers[buttonName]) / 1000;
+                if (navigator.sendBeacon) {
+                    const formData = new FormData();
+                    formData.append('action', 'track_custom_event');
+                    formData.append('session_id', getCookie('device_session'));
+                    formData.append('event_type', 'button_time_spent');
+                    formData.append('event_name', `Time Spent on ${buttonName} (Unload)`);
+                    formData.append('event_value', `${timeSpent.toFixed(2)}s`);
+                    formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
+                    navigator.sendBeacon(ajax_object.ajax_url, formData);
+                } else {
+                    // Fallback for older browsers
+                    trackCustomEvent('button_time_spent', `Time Spent on ${buttonName} (Unload)`, `${timeSpent.toFixed(2)}s`);
+                }
+            }
+        }
+    });
+});
+
+// Initialize device tracking
+function initializeDeviceTracking() {
     // Helper to get cookie value (still needed for session_id)
     function getCookie(name) {
         const value = `; ${document.cookie}`;
@@ -734,508 +1360,128 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Call the new function on DOMContentLoaded
     collectAndSendClientDeviceInfo();
+}
 
-    // Track Swiper slide changes
-    swiper.on('slideChange', function () {
-        trackCustomEvent('swiper_slide_change', 'Swiper Slide Changed', 'Slide ' + (this.realIndex + 1));
-    });
-    // Track Swiper navigation clicks
-    document.querySelectorAll('.swiper-button-next, .swiper-button-prev').forEach(button => {
-        button.addEventListener('click', function() {
-            trackCustomEvent('swiper_nav_click', 'Swiper Navigation Click', this.classList.contains('swiper-button-next') ? 'Next' : 'Prev');
-        });
-    });
-    // Track Swiper pagination clicks
-    document.querySelectorAll('.swiper-pagination-bullet').forEach(bullet => {
-        bullet.addEventListener('click', function() {
-            trackCustomEvent('swiper_pagination_click', 'Swiper Pagination Click', 'Bullet ' + (Array.from(this.parentNode.children).indexOf(this) + 1));
-        });
-    });
-
-    // Intersection Observer for section views and time spent
-    const sections = document.querySelectorAll('.Corse_container, .review-slider, .faq_section, .order_section, .video-container');
-    const sectionTimers = {};
-
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            const sectionId = entry.target.id;
-            if (entry.isIntersecting) {
-                // Section entered viewport
-                if (!sectionTimers[sectionId]) {
-                    sectionTimers[sectionId] = Date.now();
-                    trackCustomEvent('section_view', 'Section Viewed', sectionId);
-                }
-            } else {
-                // Section left viewport
-                if (sectionTimers[sectionId]) {
-                    const timeSpent = (Date.now() - sectionTimers[sectionId]) / 1000; // in seconds
-                    // Changed eventName to include sectionId directly for clarity in logs
-                    trackCustomEvent('section_time_spent', `Time Spent on Section: ${sectionId}`, `${timeSpent.toFixed(2)}s`);
-                    delete sectionTimers[sectionId]; // Reset timer
-                }
-            }
-        });
-    }, { threshold: 0.5 }); // Trigger when 50% of the section is visible
-
-    sections.forEach(section => {
-        observer.observe(section);
-    });
-
-    // Intersection Observer for floating buttons (call and WhatsApp)
-    const floatingButtons = document.querySelectorAll('.callbtnlaptop, .float');
-    const floatingButtonTimers = {};
-
-    const floatingButtonObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            const buttonName = entry.target.classList.contains('callbtnlaptop') ? 'Call Button' : 'WhatsApp Button';
-            if (entry.isIntersecting) {
-                if (!floatingButtonTimers[buttonName]) {
-                    floatingButtonTimers[buttonName] = Date.now();
-                    trackCustomEvent('button_visible', `${buttonName} Visible`, 'Entered Viewport');
-                }
-            } else {
-                if (floatingButtonTimers[buttonName]) {
-                    const timeSpent = (Date.now() - floatingButtonTimers[buttonName]) / 1000;
-                    trackCustomEvent('button_time_spent', `Time Spent on ${buttonName}`, `${timeSpent.toFixed(2)}s`);
-                    delete floatingButtonTimers[buttonName];
-                }
-            }
-        });
-    }, { threshold: 0.5 }); // Trigger when 50% of the button is visible
-
-    floatingButtons.forEach(button => {
-        floatingButtonObserver.observe(button);
-    });
-
-    // Track floating button clicks
-    document.querySelector('.callbtnlaptop')?.addEventListener('click', function() {
-        trackCustomEvent('button_click', 'Call Button Clicked', 'Floating Call Button');
-    });
-    document.querySelector('.float')?.addEventListener('click', function() {
-        trackCustomEvent('button_click', 'WhatsApp Button Clicked', 'Floating WhatsApp Button');
-    });
-
-    // Track scroll depth (enhanced)
-    let lastScrollDepth = 0;
-    window.addEventListener('scroll', function() {
-        const scrollY = window.scrollY;
-        const docHeight = document.documentElement.scrollHeight;
-        const windowHeight = window.innerHeight;
-        const currentScrollDepth = Math.min(100, (scrollY / (docHeight - windowHeight)) * 100);
-
-        if (Math.abs(currentScrollDepth - lastScrollDepth) >= 10) { // Track every 10% change
-            trackCustomEvent('scroll_depth', 'Page Scroll Depth', currentScrollDepth.toFixed(2));
-            lastScrollDepth = currentScrollDepth;
-        }
-    });
-
-    // Track click position
-    document.addEventListener('click', function(event) {
-        trackCustomEvent('click_position', 'Click Position', `X:${event.clientX}, Y:${event.clientY}`);
-    });
-
-    // Track last key press
-    document.addEventListener('keydown', function(event) {
-        trackCustomEvent('key_press', 'Key Pressed', event.key);
-    });
-
-
-    // Product selection and price calculation
-    const productRadios = document.querySelectorAll('input[name="product_id"]');
-    const deliveryRadios = document.querySelectorAll('input[name="delivery_zone"]');
-    const paymentRadios = document.querySelectorAll('input[name="payment_method"]');
+// Initialize time spent tracking
+function initializeTimeSpentTracking() {
+    var startTime = Date.now();
+    var sessionId = getCookie('device_session');
     
-    // Initialize with first product
-    if (productRadios.length > 0) {
-        updateProductInfo(productRadios[0].value);
-    }
-    
-    // Product selection handler
-    productRadios.forEach(radio => {
-        radio.addEventListener('change', function() {
-            if (this.checked) {
-                updateProductInfo(this.value);
-                // GA4 Event: select_content
-                if (typeof gtag === 'function') {
-                    gtag('event', 'select_content', {
-                        content_type: 'product',
-                        item_id: this.value,
-                        item_name: document.querySelector(`#pro_id${this.value} + .products_dets .product_description h2`).textContent,
-                        value: parseFloat(document.querySelector(`#pro_id${this.value} + .products_dets .price .alex-mt strong`).textContent.replace('৳ ', '')),
-                        currency: 'BDT'
-                    });
-                }
-                // FB Pixel Event: ViewContent (or AddToCart if user intends to buy)
-                if (typeof fbq === 'function') {
-                    fbq('track', 'ViewContent', {
-                        content_ids: [this.value],
-                        content_name: document.querySelector(`#pro_id${this.value} + .products_dets .product_description h2`).textContent,
-                        content_type: 'product',
-                        value: parseFloat(document.querySelector(`#pro_id${this.value} + .products_dets .price .alex-mt strong`).textContent.replace('৳ ', '')),
-                        currency: 'BDT'
-                    });
-                }
-                trackCustomEvent('product_select', 'Product Selected', `Product ID: ${this.value}, Name: ${document.querySelector(`#pro_id${this.value} + .products_dets .product_description h2`).textContent}`);
-            }
-        });
-    });
-    
-    // Delivery zone change handler
-    deliveryRadios.forEach(radio => {
-        radio.addEventListener('change', function() {
-            updateTotalAmount();
-            trackCustomEvent('delivery_option_select', 'Delivery Option Selected', this.id);
-        });
-    });
-    
-    // Payment method change handler
-    paymentRadios.forEach(radio => {
-        radio.addEventListener('change', function() {
-            showPaymentInstructions(this.value);
-            trackCustomEvent('payment_method_select', 'Payment Method Selected', this.value);
-        });
-    });
-    
-    // Initialize payment instructions
-    showPaymentInstructions('pay_later');
-    
-    function updateProductInfo(productId) {
-        // Get product data via AJAX
-        if (typeof jQuery !== 'undefined' && typeof ajax_object !== 'undefined') {
-            jQuery.post(ajax_object.ajax_url, {
-                action: 'get_wc_product_data',
-                id: productId,
-                nonce: ajax_object.nonce
-            }, function(response) {
-                if (response && response.name) {
-                    document.querySelector('.name_cart').textContent = response.name;
-                    document.querySelectorAll('.price_cart').forEach(el => {
-                        el.textContent = response.price;
-                    });
-                    updateTotalAmount();
-                    document.querySelector('.invoice-bills').style.display = 'block';
-                }
+    function updateTimeSpent() {
+        var timeSpent = Math.floor((Date.now() - startTime) / 1000);
+        
+        if (sessionId && timeSpent > 10) { // Only update if more than 10 seconds
+            fetch(ajax_object.ajax_url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=update_time_spent&session_id=' + sessionId + '&time_spent=' + timeSpent + '&nonce=' + ajax_object.device_info_nonce
             });
         }
     }
     
-    function updateTotalAmount() {
-        const selectedDelivery = document.querySelector('input[name="delivery_zone"]:checked');
-        const productPrice = parseFloat(document.querySelector('.price_cart')?.textContent) || 0;
-        
-        let deliveryCharge = 0;
-        if (selectedDelivery && typeof ajax_object !== 'undefined') {
-            if (selectedDelivery.value === '1') {
-                deliveryCharge = parseFloat(ajax_object.dhaka_delivery_charge) || 0;
-            } else if (selectedDelivery.value === '2') {
-                deliveryCharge = parseFloat(ajax_object.outside_dhaka_delivery_charge) || 0;
-            }
-        }
-        
-        const totalAmount = productPrice + deliveryCharge;
-        
-        const deliveryChargeEl = document.getElementById('delivery_charge');
-        const totalAmountEl = document.getElementById('total_amount');
-        
-        if (deliveryChargeEl) deliveryChargeEl.textContent = deliveryCharge;
-        if (totalAmountEl) totalAmountEl.textContent = totalAmount;
-    }
+    // Update time spent every 30 seconds
+    setInterval(updateTimeSpent, 30000);
     
-    function showPaymentInstructions(method) {
-        // Hide all instructions and remove required from their transaction inputs
-        document.querySelectorAll('.payment-instruction').forEach(instruction => {
-            instruction.style.display = 'none';
-            const transactionInput = instruction.querySelector('input[name="transaction_number"]');
-            if (transactionInput) {
-                transactionInput.removeAttribute('required');
-                transactionInput.value = ''; // Clear value when hidden
-            }
-        });
-        
-        // Show selected instruction and set required for its transaction input if needed
-        const selectedInstruction = document.getElementById(method + '-instruction');
-        if (selectedInstruction) {
-            selectedInstruction.style.display = 'block';
-            const transactionInput = selectedInstruction.querySelector('input[name="transaction_number"]');
-            if (transactionInput && method !== 'pay_later') {
-                transactionInput.setAttribute('required', 'required');
-            }
-        }
+    // Update on page unload
+    window.addEventListener('beforeunload', updateTimeSpent);
+}
+
+// Initialize device details tracking
+function initializeDeviceDetailsTracking() {
+    // Helper to get cookie value (still needed for session_id)
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
     }
-    
-    // Track form field interactions
-    document.querySelectorAll('input[name="billing_first_name"], input[name="billing_phone"], textarea[name="billing_address_1"]').forEach(input => {
-        input.addEventListener('focus', function() {
-            trackCustomEvent('form_field_focus', 'Form Field Focused', this.name);
-        });
-        input.addEventListener('change', function() {
-            trackCustomEvent('form_field_change', 'Form Field Changed', `${this.name}: ${this.value.substring(0, 50)}`);
-        });
-    });
 
-    // Track FAQ accordion clicks
-    document.querySelectorAll('.accordion-button').forEach(button => {
-        button.addEventListener('click', function() {
-            const faqTitle = this.textContent.trim();
-            const isExpanded = this.getAttribute('aria-expanded') === 'true';
-            trackCustomEvent('faq_toggle', isExpanded ? 'FAQ Closed' : 'FAQ Opened', faqTitle);
-        });
-    });
+    // Helper to track custom events
+    function trackCustomEvent(eventType, eventName, eventValue = '') {
+        if (typeof ajax_object === 'undefined') {
+            return;
+        }
+        const sessionId = getCookie('device_session');
+        if (!sessionId) return;
 
-    // Enhanced form submission with better error handling
-    const orderForm = document.getElementById('wc-order-form');
-    if (orderForm) {
-        orderForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const submitBtn = document.getElementById('submit-order-btn');
-            const originalText = submitBtn.innerHTML;
-            
-            // Show loading state
-            submitBtn.classList.add('btn-loading');
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> প্রসেসিং...';
-            
-            const formData = new FormData(this);
-            formData.append('action', 'submit_wc_order');
-            
-            // GA4 Event: begin_checkout
-            if (typeof gtag === 'function') {
-                const items = [{
-                    item_id: formData.get('product_id'),
-                    item_name: document.querySelector(`#pro_id${formData.get('product_id')} + .products_dets .product_description h2`).textContent,
-                    price: parseFloat(document.querySelector(`#pro_id${formData.get('product_id')} + .products_dets .price .alex-mt strong`).textContent.replace('৳ ', '')),
-                    quantity: 1
-                }];
-                gtag('event', 'begin_checkout', {
-                    currency: 'BDT',
-                    value: parseFloat(document.getElementById('total_amount').textContent),
-                    items: items
+        jQuery.post(ajax_object.ajax_url, {
+            action: 'track_custom_event',
+            session_id: sessionId,
+            event_type: eventType,
+            event_name: eventName,
+            event_value: eventValue,
+            nonce: ajax_object.event_nonce // Use the new nonce
+        });
+    }
+
+    // NEW: Function to collect and send client-side device info
+    async function collectAndSendClientDeviceInfo() {
+        if (typeof ajax_object === 'undefined') {
+            return;
+        }
+        const sessionId = getCookie('device_session');
+        if (!sessionId) return;
+
+        const deviceInfo = {
+            session_id: sessionId,
+            language: navigator.language,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            connection_type: navigator.connection ? navigator.connection.effectiveType : 'N/A',
+            memory_info: navigator.deviceMemory || 'N/A',
+            cpu_cores: navigator.hardwareConcurrency || 'N/A',
+            touchscreen_detected: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0) ? 1 : 0,
+            nonce: ajax_object.device_info_nonce // Use the new nonce
+        };
+
+        // Battery Info (async)
+        if ('getBattery' in navigator) {
+            try {
+                const battery = await navigator.getBattery();
+                deviceInfo.battery_level = battery.level;
+                deviceInfo.battery_charging = battery.charging ? 1 : 0;
+
+                // Track battery changes as custom events
+                battery.addEventListener('chargingchange', () => {
+                    trackCustomEvent('battery_status_change', 'Battery Charging Status Changed', JSON.stringify({
+                        level: battery.level,
+                        charging: battery.charging
+                    }));
                 });
-            }
-
-            // FB Pixel Event: InitiateCheckout
-            if (typeof fbq === 'function') {
-                fbq('track', 'InitiateCheckout', {
-                    content_ids: [formData.get('product_id')],
-                    content_type: 'product',
-                    value: parseFloat(document.getElementById('total_amount').textContent),
-                    currency: 'BDT'
+                battery.addEventListener('levelchange', () => {
+                    trackCustomEvent('battery_status_change', 'Battery Level Changed', JSON.stringify({
+                        level: battery.level,
+                        charging: battery.charging
+                    }));
                 });
+
+            } catch (e) {
+                console.warn('Battery API not available or permission denied:', e);
+                deviceInfo.battery_level = null;
+                deviceInfo.battery_charging = null;
             }
-            trackCustomEvent('order_form_submit', 'Order Form Submitted');
-
-            if (typeof ajax_object !== 'undefined') {
-                fetch(ajax_object.ajax_url, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Store form data for invoice
-                        const customerName = formData.get('billing_first_name');
-                        const customerPhone = formData.get('billing_phone');
-                        
-                        showInvoiceModal({
-                            ...data.data,
-                            customer_name: customerName,
-                            customer_phone: customerPhone
-                        });
-                        
-                        this.reset();
-                        // Reset to first product
-                        if (productRadios.length > 0) {
-                            productRadios[0].checked = true;
-                            updateProductInfo(productRadios[0].value);
-                        }
-                        // Reset to Pay Later
-                        const payLaterRadio = document.getElementById('pay_later');
-                        if (payLaterRadio) {
-                            payLaterRadio.checked = true;
-                            showPaymentInstructions('pay_later');
-                        }
-                        trackCustomEvent('order_success', 'Order Placed Successfully', `Order ID: ${data.data.order_id}`);
-
-                        // Save form data to localStorage for auto-fill
-                        localStorage.setItem('billing_first_name', customerName);
-                        localStorage.setItem('billing_phone', customerPhone);
-                        localStorage.setItem('billing_address_1', formData.get('billing_address_1'));
-
-                    } else {
-                        alert(data.data || 'অর্ডার প্রসেসিং এ সমস্যা হয়েছে');
-                        trackCustomEvent('order_failure', 'Order Submission Failed', data.data || 'Unknown error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('অর্ডার প্রসেসিং এ সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
-                    trackCustomEvent('order_error', 'Order Submission Error', error.message);
-                })
-                .finally(() => {
-                    // Reset button state
-                    submitBtn.classList.remove('btn-loading');
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = originalText;
-                });
-            }
-        });
-    }
-
-    // Track order buttons clicks
-    document.getElementById('order-button-top')?.addEventListener('click', function() {
-        trackCustomEvent('button_click', 'Order Button Clicked', 'Top Order Button');
-    });
-    document.getElementById('order-button-middle')?.addEventListener('click', function() {
-        trackCustomEvent('button_click', 'Order Button Clicked', 'Middle Order Button');
-    });
-    document.getElementById('submit-order-btn')?.addEventListener('click', function() {
-        trackCustomEvent('button_click', 'Order Button Clicked', 'Submit Order Button');
-    });
-
-    // Auto-fill form fields from localStorage
-    const billingFirstNameInput = document.querySelector('input[name="billing_first_name"]');
-    const billingPhoneInput = document.querySelector('input[name="billing_phone"]');
-    const billingAddressInput = document.querySelector('textarea[name="billing_address_1"]');
-
-    if (billingFirstNameInput && localStorage.getItem('billing_first_name')) {
-        billingFirstNameInput.value = localStorage.getItem('billing_first_name');
-    }
-    if (billingPhoneInput && localStorage.getItem('billing_phone')) {
-        billingPhoneInput.value = localStorage.getItem('billing_phone');
-    }
-    if (billingAddressInput && localStorage.getItem('billing_address_1')) {
-        billingAddressInput.value = localStorage.getItem('billing_address_1');
-    }
-
-    // Send screen size to server once per session
-    const sessionId = getCookie('device_session');
-    if (sessionId && typeof jQuery !== 'undefined' && typeof ajax_object !== 'undefined') {
-        const screenWidth = window.screen.width;
-        const screenHeight = window.screen.height;
-        const screenSize = `${screenWidth}x${screenHeight}`;
-
-        // Check if screen size is already stored in session (or a temporary cookie) to avoid redundant updates
-        if (!sessionStorage.getItem('screen_size_sent_' + sessionId)) {
-            jQuery.post(ajax_object.ajax_url, {
-                action: 'update_device_screen_size',
-                session_id: sessionId,
-                screen_size: screenSize,
-                nonce: ajax_object.screen_size_nonce // Use the new nonce
-            }, function(response) {
-                if (response.success) {
-                    sessionStorage.setItem('screen_size_sent_' + sessionId, 'true');
-                }
-            });
+        } else {
+            deviceInfo.battery_level = null;
+            deviceInfo.battery_charging = null;
         }
-    }
-});
 
-function copyNumber(elementId) {
-    const numberElement = document.getElementById(elementId);
-    if (!numberElement) return;
-    
-    const number = numberElement.textContent;
-    
-    navigator.clipboard.writeText(number).then(function() {
-        // Show success feedback
-        const button = numberElement.nextElementSibling;
-        if (button) {
-            const originalText = button.innerHTML;
-            button.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            button.style.background = '#28a745';
-            
-            setTimeout(() => {
-                button.innerHTML = originalText;
-                button.style.background = '#dd0055';
-            }, 2000);
-        }
-    }).catch(function(err) {
-        console.error('Could not copy text: ', err);
-        alert('কপি করতে সমস্যা হয়েছে। নাম্বারটি ম্যানুয়ালি কপি করুন: ' + number);
-    });
-}
-
-function showInvoiceModal(data) {
-    const orderIdEl = document.getElementById('invoice-order-id');
-    const customerNameEl = document.getElementById('invoice-customer-name');
-    const customerPhoneEl = document.getElementById('invoice-customer-phone');
-    const paymentMethodEl = document.getElementById('invoice-payment-method');
-    const transactionNumberEl = document.getElementById('invoice-transaction-number');
-    const totalAmountEl = document.getElementById('invoice-total-amount');
-    
-    if (orderIdEl) orderIdEl.textContent = '#' + (data.order_id || 'N/A');
-    if (customerNameEl) customerNameEl.textContent = data.customer_name || 'N/A';
-    if (customerPhoneEl) customerPhoneEl.textContent = data.customer_phone || 'N/A';
-    if (paymentMethodEl) paymentMethodEl.textContent = data.payment_method || 'N/A';
-    if (transactionNumberEl) transactionNumberEl.textContent = data.transaction_number || 'N/A';
-    if (totalAmountEl) {
-        const totalAmount = document.getElementById('total_amount');
-        totalAmountEl.textContent = '৳' + (totalAmount ? totalAmount.textContent : '0');
-    }
-    
-    const modal = document.getElementById('invoice-modal');
-    if (modal) modal.classList.add('show');
-}
-
-function closeInvoiceModal() {
-    const modal = document.getElementById('invoice-modal');
-    if (modal) modal.classList.remove('show');
-}
-
-// Close modal when clicking outside
-const invoiceModal = document.getElementById('invoice-modal');
-if (invoiceModal) {
-    invoiceModal.addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeInvoiceModal();
-        }
-    });
-}
-
-// Ensure time spent for visible sections and buttons is sent on page unload
-window.addEventListener('beforeunload', function() {
-    // Track time spent for any currently visible sections
-    for (const sectionId in sectionTimers) {
-        if (sectionTimers.hasOwnProperty(sectionId)) {
-            const timeSpent = (Date.now() - sectionTimers[sectionId]) / 1000;
-            // Use navigator.sendBeacon for reliable data transmission on unload
-            if (navigator.sendBeacon) {
-                const formData = new FormData();
-                formData.append('action', 'track_custom_event');
-                formData.append('session_id', getCookie('device_session'));
-                formData.append('event_type', 'section_time_spent');
-                formData.append('event_name', `Time Spent on Section: ${sectionId} (Unload)`);
-                formData.append('event_value', `${timeSpent.toFixed(2)}s`);
-                formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
-                navigator.sendBeacon(ajax_object.ajax_url, formData);
+        // Send static device info to server
+        jQuery.post(ajax_object.ajax_url, {
+            action: 'update_client_device_details',
+            ...deviceInfo
+        }, function(response) {
+            if (response.success) {
+                console.log('Client device info updated:', response.data);
             } else {
-                // Fallback for older browsers (less reliable on unload)
-                trackCustomEvent('section_time_spent', `Time Spent on Section: ${sectionId} (Unload)`, `${timeSpent.toFixed(2)}s`);
+                console.error('Failed to update client device info:', response.data);
             }
-        }
+        });
     }
 
-    // Track time spent for any currently visible floating buttons
-    for (const buttonName in floatingButtonTimers) {
-        if (floatingButtonTimers.hasOwnProperty(buttonName)) {
-            const timeSpent = (Date.now() - floatingButtonTimers[buttonName]) / 1000;
-            if (navigator.sendBeacon) {
-                const formData = new FormData();
-                formData.append('action', 'track_custom_event');
-                formData.append('session_id', getCookie('device_session'));
-                formData.append('event_type', 'button_time_spent');
-                formData.append('event_name', `Time Spent on ${buttonName} (Unload)`);
-                formData.append('event_value', `${timeSpent.toFixed(2)}s`);
-                formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
-                navigator.sendBeacon(ajax_object.ajax_url, formData);
-            } else {
-                // Fallback for older browsers
-                trackCustomEvent('button_time_spent', `Time Spent on ${buttonName} (Unload)`, `${timeSpent.toFixed(2)}s`);
-            }
-        }
-    }
-});
+    // Call the new function on DOMContentLoaded
+    collectAndSendClientDeviceInfo();
+}
 </script>
 
 <?php get_footer(); ?>

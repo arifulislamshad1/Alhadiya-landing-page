@@ -279,6 +279,11 @@ function block_ip_after_order($ip, $time = 5, $unit = 'minutes') {
 
 // Enhanced device tracking - Initial visit/page load info
 function track_enhanced_device_info() {
+    // Check if device tracking is enabled
+    if (!get_theme_mod('enable_device_tracking', true)) {
+        return false;
+    }
+    
     global $wpdb;
     
     $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field($_SERVER['HTTP_USER_AGENT']) : '';
@@ -473,68 +478,66 @@ function get_location_and_isp($ip) {
 
 // Track time spent on website
 function track_time_spent() {
-    ?>
-    <script>
-    (function() {
-        var startTime = Date.now();
-        var sessionId = getCookie('device_session');
-        
-        function getCookie(name) {
-            var value = "; " + document.cookie;
-            var parts = value.split("; " + name + "=");
-            if (parts.length == 2) return parts.pop().split(";").shift();
-        }
-        
-        function updateTimeSpent() {
-            var timeSpent = Math.floor((Date.now() - startTime) / 1000);
-            
-            if (sessionId && timeSpent > 10) { // Only update if more than 10 seconds
-                fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: 'action=update_time_spent&session_id=' + sessionId + '&time_spent=' + timeSpent + '&nonce=<?php echo wp_create_nonce('time_tracking'); ?>'
-                });
-            }
-        }
-        
-        // Update time spent every 30 seconds
-        setInterval(updateTimeSpent, 30000);
-        
-        // Update on page unload
-        window.addEventListener('beforeunload', updateTimeSpent);
-    })();
-    </script>
-    <?php
+    // Check if time spent tracking is enabled
+    if (!get_theme_mod('enable_time_spent_tracking', true)) {
+        wp_send_json_error('Time spent tracking is disabled');
+        return;
+    }
+    
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'alhadiya_device_info_nonce')) {
+        wp_send_json_error('Security check failed');
+        return;
+    }
+
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'device_tracking';
+
+    $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
+    $time_spent = isset($_POST['time_spent']) ? intval($_POST['time_spent']) : 0;
+
+    if (!empty($session_id) && $time_spent > 0) {
+        $wpdb->query($wpdb->prepare(
+            "UPDATE $table_name SET time_spent = time_spent + %d WHERE session_id = %s",
+            $time_spent,
+            $session_id
+        ));
+        wp_send_json_success('Time spent updated successfully');
+    } else {
+        wp_send_json_error('Invalid data provided');
+    }
 }
-add_action('wp_footer', 'track_time_spent');
 
 // AJAX handler for updating time spent
 function update_time_spent() {
-    if (!wp_verify_nonce($_POST['nonce'], 'time_tracking')) {
-        wp_die('Security check failed');
+    // Check if time spent tracking is enabled
+    if (!get_theme_mod('enable_time_spent_tracking', true)) {
+        return;
     }
     
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'device_tracking';
-    
-    $session_id = sanitize_text_field($_POST['session_id']);
-    $time_spent = intval($_POST['time_spent']);
-    
-    $wpdb->update(
-        $table_name,
-        array('time_spent' => $time_spent),
-        array('session_id' => $session_id)
-    );
-    
-    wp_die();
+    if (!is_admin()) {
+        $session_id = isset($_COOKIE['device_session']) ? sanitize_text_field($_COOKIE['device_session']) : '';
+        if (!empty($session_id)) {
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'device_tracking';
+            
+            $wpdb->query($wpdb->prepare(
+                "UPDATE $table_name SET time_spent = time_spent + 1 WHERE session_id = %s",
+                $session_id
+            ));
+        }
+    }
 }
 add_action('wp_ajax_update_time_spent', 'update_time_spent');
 add_action('wp_ajax_nopriv_update_time_spent', 'update_time_spent');
 
 // AJAX handler for tracking custom events
 function track_custom_event() {
+    // Check if custom events tracking is enabled
+    if (!get_theme_mod('enable_custom_events_tracking', true)) {
+        wp_send_json_error('Custom events tracking is disabled');
+        return;
+    }
+    
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'alhadiya_event_nonce')) {
         wp_send_json_error('Security check failed');
         return;
@@ -542,6 +545,7 @@ function track_custom_event() {
 
     global $wpdb;
     $table_name = $wpdb->prefix . 'device_events';
+
     $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
     $event_type = isset($_POST['event_type']) ? sanitize_text_field($_POST['event_type']) : '';
     $event_name = isset($_POST['event_name']) ? sanitize_text_field($_POST['event_name']) : '';
@@ -565,6 +569,12 @@ add_action('wp_ajax_nopriv_track_custom_event', 'track_custom_event');
 
 // AJAX handler for updating device screen size
 function update_device_screen_size() {
+    // Check if device details tracking is enabled
+    if (!get_theme_mod('enable_device_details_tracking', true)) {
+        wp_send_json_error('Device details tracking is disabled');
+        return;
+    }
+    
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'alhadiya_screen_size_nonce')) {
         wp_send_json_error('Security check failed');
         return;
@@ -572,6 +582,7 @@ function update_device_screen_size() {
 
     global $wpdb;
     $table_name = $wpdb->prefix . 'device_tracking';
+
     $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
     $screen_size = isset($_POST['screen_size']) ? sanitize_text_field($_POST['screen_size']) : '';
 
@@ -588,6 +599,12 @@ add_action('wp_ajax_nopriv_update_device_screen_size', 'update_device_screen_siz
 
 // NEW AJAX handler for updating client-side device details
 function update_client_device_details() {
+    // Check if device details tracking is enabled
+    if (!get_theme_mod('enable_device_details_tracking', true)) {
+        wp_send_json_error('Device details tracking is disabled');
+        return;
+    }
+    
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'alhadiya_device_info_nonce')) {
         wp_send_json_error('Security check failed');
         return;
@@ -595,6 +612,7 @@ function update_client_device_details() {
 
     global $wpdb;
     $table_name = $wpdb->prefix . 'device_tracking';
+
     $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
     $data_to_update = array();
 
@@ -1331,6 +1349,103 @@ function alhadiya_customize_register($wp_customize) {
         'type' => 'textarea',
         'description' => __('Add an announcement to display at the top of the page (leave empty to hide)', 'alhadiya'),
     ));
+    
+    // Cookie Consent Settings
+    $wp_customize->add_section('cookie_consent_settings', array(
+        'title' => __('Cookie & Tracking Settings', 'alhadiya'),
+        'priority' => 35,
+    ));
+    
+    // Enable/Disable Cookie Consent
+    $wp_customize->add_setting('enable_cookie_consent', array(
+        'default' => false,
+        'sanitize_callback' => 'sanitize_checkbox',
+    ));
+    
+    $wp_customize->add_control('enable_cookie_consent', array(
+        'label' => __('Enable Cookie Consent Banner', 'alhadiya'),
+        'description' => __('Show cookie consent banner to users (not required for Bangladesh)', 'alhadiya'),
+        'section' => 'cookie_consent_settings',
+        'type' => 'checkbox',
+    ));
+    
+    // Device Tracking Settings
+    $wp_customize->add_setting('enable_device_tracking', array(
+        'default' => true,
+        'sanitize_callback' => 'sanitize_checkbox',
+    ));
+    
+    $wp_customize->add_control('enable_device_tracking', array(
+        'label' => __('Enable Device Tracking', 'alhadiya'),
+        'description' => __('Track device information and analytics', 'alhadiya'),
+        'section' => 'cookie_consent_settings',
+        'type' => 'checkbox',
+    ));
+    
+    // Page Visit Tracking
+    $wp_customize->add_setting('enable_page_visit_tracking', array(
+        'default' => true,
+        'sanitize_callback' => 'sanitize_checkbox',
+    ));
+    
+    $wp_customize->add_control('enable_page_visit_tracking', array(
+        'label' => __('Enable Page Visit Tracking', 'alhadiya'),
+        'description' => __('Track which pages users visit', 'alhadiya'),
+        'section' => 'cookie_consent_settings',
+        'type' => 'checkbox',
+    ));
+    
+    // Time Spent Tracking
+    $wp_customize->add_setting('enable_time_spent_tracking', array(
+        'default' => true,
+        'sanitize_callback' => 'sanitize_checkbox',
+    ));
+    
+    $wp_customize->add_control('enable_time_spent_tracking', array(
+        'label' => __('Enable Time Spent Tracking', 'alhadiya'),
+        'description' => __('Track how long users spend on the site', 'alhadiya'),
+        'section' => 'cookie_consent_settings',
+        'type' => 'checkbox',
+    ));
+    
+    // Custom Events Tracking
+    $wp_customize->add_setting('enable_custom_events_tracking', array(
+        'default' => true,
+        'sanitize_callback' => 'sanitize_checkbox',
+    ));
+    
+    $wp_customize->add_control('enable_custom_events_tracking', array(
+        'label' => __('Enable Custom Events Tracking', 'alhadiya'),
+        'description' => __('Track button clicks, form submissions, etc.', 'alhadiya'),
+        'section' => 'cookie_consent_settings',
+        'type' => 'checkbox',
+    ));
+    
+    // Video Tracking
+    $wp_customize->add_setting('enable_video_tracking', array(
+        'default' => true,
+        'sanitize_callback' => 'sanitize_checkbox',
+    ));
+    
+    $wp_customize->add_control('enable_video_tracking', array(
+        'label' => __('Enable Video Tracking', 'alhadiya'),
+        'description' => __('Track YouTube video interactions', 'alhadiya'),
+        'section' => 'cookie_consent_settings',
+        'type' => 'checkbox',
+    ));
+    
+    // Device Details Tracking
+    $wp_customize->add_setting('enable_device_details_tracking', array(
+        'default' => true,
+        'sanitize_callback' => 'sanitize_checkbox',
+    ));
+    
+    $wp_customize->add_control('enable_device_details_tracking', array(
+        'label' => __('Enable Device Details Tracking', 'alhadiya'),
+        'description' => __('Track screen size, battery, memory, etc.', 'alhadiya'),
+        'section' => 'cookie_consent_settings',
+        'type' => 'checkbox',
+    ));
 }
 add_action('customize_register', 'alhadiya_customize_register');
 
@@ -1908,6 +2023,11 @@ function device_session_details_page() {
 
 // Track page visits on every page load
 function track_page_visit() {
+    // Check if page visit tracking is enabled
+    if (!get_theme_mod('enable_page_visit_tracking', true)) {
+        return;
+    }
+    
     if (!is_admin()) {
         $tracking_data = track_enhanced_device_info();
         // Track initial page view as an event
