@@ -1,3 +1,12 @@
+<?php 
+// Initialize device tracking and create session ID
+if (get_theme_mod('enable_device_tracking', true)) {
+    $device_info = track_enhanced_device_info();
+    $session_id = $device_info['session_id'] ?? null;
+} else {
+    $session_id = null;
+}
+?>
 <?php get_header(); ?>
 
 <div class="container">
@@ -7,14 +16,14 @@
             <?php the_custom_logo(); ?>
         <?php else: ?>
             <h1 style="color: #dd0055; font-size: 32px; margin: 15px 0; font-family: 'SolaimanLipi', Arial, sans-serif;">
-                <?php bloginfo('name'); ?>
+                <?php echo esc_html(get_bloginfo('name')); ?>
             </h1>
         <?php endif; ?>
     </div>
 
     <!-- Main Heading -->
     <h1 class="main-heading">
-        <?php echo get_theme_mod('main_heading_text', 'অর্গানিক হাতের মেহেদি বানানোর কোর্স মাত্র ৪৯০ টাকা'); ?>
+        <?php echo esc_html(get_theme_mod('main_heading_text', 'অর্গানিক হাতের মেহেদি বানানোর কোর্স মাত্র ৪৯০ টাকা')); ?>
     </h1>
     
     <!-- Video Section -->
@@ -36,51 +45,77 @@
     
     <!-- Course Details - Now Dynamic with Individual Colors -->
     <section class="Corse_container" id="course-section-1" style="--section-color: <?php echo get_theme_mod('section1_color', '#28a745'); ?>">
-        <h3 style="color: var(--section-color);"><?php echo get_theme_mod('section1_title', '🌱 অর্গানিক মেহেদী তৈরির সহজ উপায়'); ?></h3>
+        <h3 style="color: var(--section-color);"><?php echo esc_html(get_theme_mod('section1_title', '🌱 অর্গানিক মেহেদী তৈরির সহজ উপায়')); ?></h3>
         <div class="Corse_dtail">
             <ul class="Corse_dtail_left">
-                <li style="color: <?php echo get_theme_mod('course_item1_color', '#28a745'); ?>;"><?php echo get_theme_mod('course_item1_text', 'অর্গানিক হাতের মেহেদী তৈরি'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item2_color', '#28a745'); ?>;"><?php echo get_theme_mod('course_item2_text', 'ড্রাই রিলিজ কিভাবে করে'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item3_color', '#28a745'); ?>;"><?php get_theme_mod('course_item3_text', 'মেহেদী কোণ তৈরি'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item1_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item1_text', 'অর্গানিক হাতের মেহেদী তৈরি')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item2_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item2_text', 'ড্রাই রিলিজ কিভাবে করে')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item3_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item3_text', 'মেহেদী কোণ তৈরি')); ?>
+                </li>
             </ul>
             <ul class="Corse_dtail_right">
-                <li style="color: <?php echo get_theme_mod('course_item4_color', '#28a745'); ?>;"><?php echo get_theme_mod('course_item4_text', 'প্রফেশনাল রেসিপি শিট'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item5_color', '#28a745'); ?>;"><?php echo get_theme_mod('course_item5_text', 'কি কি তেল ব্যবহার করা যাবে'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item6_color', '#28a745'); ?>;"><?php echo get_theme_mod('course_item6_text', 'কিভাবে মেহেদির রঙ গাড় হবে (সিক্রেট টিপস)'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item4_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item4_text', 'প্রফেশনাল রেসিপি শিট')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item5_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item5_text', 'কি কি তেল ব্যবহার করা যাবে')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item6_color', '#28a745')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item6_text', 'কিভাবে মেহেদির রঙ গাড় হবে (সিক্রেট টিপস)')); ?>
+                </li>
             </ul>
         </div>
     </section>
     
     <section class="Corse_container" id="course-section-2" style="--section-color: <?php echo get_theme_mod('section2_color', '#dc3545'); ?>">
-        <h3 style="color: var(--section-color);"><?php echo get_theme_mod('section2_title', '🔥 মেহেদী রঙ বাড়ানোর গোপন টিপস'); ?></h3>
+        <h3 style="color: var(--section-color);"><?php echo esc_html(get_theme_mod('section2_title', '🔥 মেহেদী রঙ বাড়ানোর গোপন টিপস')); ?></h3>
         <div class="Corse_dtail">
             <ul class="Corse_dtail_left">
-                <li style="color: <?php echo get_theme_mod('course_item7_color', '#dc3545'); ?>;"><?php echo get_theme_mod('course_item7_text', 'মেহেদির মূল্য নির্ধারণ'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item8_color', '#dc3545'); ?>;"><?php echo get_theme_mod('course_item8_text', 'দীর্ঘদিন সংরক্ষণ কিভাবে করবেন'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item9_color', '#dc3545'); ?>;"><?php echo get_theme_mod('course_item9_text', 'মেহেদী কিভাবে বিক্রি করবেন'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item7_color', '#dc3545')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item7_text', 'মেহেদির মূল্য নির্ধারণ')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item8_color', '#dc3545')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item8_text', 'দীর্ঘদিন সংরক্ষণ কিভাবে করবেন')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item9_color', '#dc3545')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item9_text', 'মেহেদী কিভাবে বিক্রি করবেন')); ?>
+                </li>
             </ul>
             <ul class="Corse_dtail_right">
-                <li style="color: <?php echo get_theme_mod('course_item10_color', '#dc3545'); ?>;"><?php echo get_theme_mod('course_item10_text', 'সার্টিফিকেট প্রদান'); ?></li>
-                <li style="color: <?php echo get_theme_mod('course_item11_color', '#dc3545'); ?>;"><?php echo get_theme_mod('course_item11_text', 'মেহেদী কোণ প্যাকেজিং'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item10_color', '#dc3545')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item10_text', 'সার্টিফিকেট প্রদান')); ?>
+                </li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item11_color', '#dc3545')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item11_text', 'মেহেদী কোণ প্যাকেজিং')); ?>
+                </li>
             </ul>
         </div>
     </section>
    
     <section class="Corse_container" id="course-section-3" style="--section-color: <?php echo get_theme_mod('section3_color', '#6f42c1'); ?>">
-        <h3 style="color: var(--section-color);"><?php echo get_theme_mod('section3_title', '📦 প্যাকেজিং ও সার্টিফিকেশন'); ?></h3>
+        <h3 style="color: var(--section-color);"><?php echo esc_html(get_theme_mod('section3_title', '📦 প্যাকেজিং ও সার্টিফিকেশন')); ?></h3>
         <div class="Corse_dtail">
             <ul class="Corse_dtail_left">
-                <li style="color: <?php echo get_theme_mod('course_item12_color', '#6f42c1'); ?>;"><?php echo get_theme_mod('course_item12_text', 'প্যাকেজিং ডিজাইন ও লেবেলিং'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item12_color', '#6f42c1')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item12_text', 'প্যাকেজিং ডিজাইন ও লেবেলিং')); ?>
+                </li>
             </ul>
             <ul class="Corse_dtail_right">
-                <li style="color: <?php echo get_theme_mod('course_item13_color', '#6f42c1'); ?>;"><?php echo get_theme_mod('course_item13_text', 'বিক্রির জন্য প্রস্তুতি'); ?></li>
+                <li style="color: <?php echo esc_attr(get_theme_mod('course_item13_color', '#6f42c1')); ?>;">
+                    <?php echo esc_html(get_theme_mod('course_item13_text', 'বিক্রির জন্য প্রস্তুতি')); ?>
+                </li>
             </ul>
         </div>
     </section>
     
     <a href="#order" class="btn btn-primary btn-lg" id="order-button-top">এখানে অর্ডার করুন</a><br>
     
-    <h2 class="title mt-3"><?php echo get_theme_mod('review_heading', 'কাস্টমার রিভিউ'); ?></h2>
+    <h2 class="title mt-3"><?php echo esc_html(get_theme_mod('review_heading', 'কাস্টমার রিভিউ')); ?></h2>
 </div>
 
 <!-- Customer Reviews Slider -->
@@ -153,7 +188,7 @@
 <!-- FAQ Section -->
 <div class="faq" id="faq-section">
     <div class="container">
-        <h2 class="title mt-5"><?php echo get_theme_mod('faq_heading', 'প্রশ্ন ও উত্তর'); ?></h2>
+        <h2 class="title mt-5"><?php echo esc_html(get_theme_mod('faq_heading', 'প্রশ্ন ও উত্তর')); ?></h2>
     </div>
 </div>
 
@@ -233,20 +268,20 @@
                     ?>
                     <div class="col-lg-4 col-md-6 col-6">
                         <label class="labels">
-                            <input type="radio" class="products_id" name="product_id" value="<?php echo $product_id; ?>" id="pro_id<?php echo $product_id; ?>" <?php echo $first ? 'checked' : ''; ?> required>
+                            <input type="radio" class="products_id" name="product_id" value="<?php echo esc_attr($product_id); ?>" id="pro_id<?php echo esc_attr($product_id); ?>" <?php echo $first ? 'checked' : ''; ?> required>
                             <div class="products_dets">
                                 <span class="checkmark"><i class="fa-solid fa-check"></i></span>
                                 <div class="img_preview">
                                     <?php echo $product->get_image('medium', array('class' => 'img-fluid product-image')); ?>
                                 </div>
                                 <div class="product_description">
-                                    <h2><?php echo $product->get_name(); ?></h2>
+                                    <h2><?php echo esc_html($product->get_name()); ?></h2>
                                     <div class="price">
                                         <?php if ($sale_price && $regular_price != $sale_price) : ?>
-                                            <p><del>৳ <?php echo $regular_price; ?></del></p>
-                                            <p class="alex-mt"><strong style="color: #dd0055;">৳ <?php echo $sale_price; ?></strong></p>
+                                            <p><del>৳ <?php echo esc_html($regular_price); ?></del></p>
+                                            <p class="alex-mt"><strong style="color: #dd0055;">৳ <?php echo esc_html($sale_price); ?></strong></p>
                                         <?php else : ?>
-                                            <p class="alex-mt"><strong style="color: #dd0055;">৳ <?php echo $price; ?></strong></p>
+                                            <p class="alex-mt"><strong style="color: #dd0055;">৳ <?php echo esc_html($price); ?></strong></p>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -286,11 +321,11 @@
                             <div class="delivery-options-container">
                                 <div class="delivery-option">
                                     <input type="radio" id="dhaka" name="delivery_zone" value="1" checked required>
-                                    <label for="dhaka"><?php echo get_theme_mod('dhaka_delivery_title', 'ঢাকার মধ্যে ডেলিভারি'); ?> - ৳<?php echo get_theme_mod('dhaka_delivery_charge', 0); ?></label>
+                                    <label for="dhaka"><?php echo esc_html(get_theme_mod('dhaka_delivery_title', 'ঢাকার মধ্যে ডেলিভারি')); ?> - ৳<?php echo esc_html(get_theme_mod('dhaka_delivery_charge', 0)); ?></label>
                                 </div>
                                 <div class="delivery-option">
                                     <input type="radio" id="outside_dhaka" name="delivery_zone" value="2" required>
-                                    <label for="outside_dhaka"><?php echo get_theme_mod('outside_dhaka_delivery_title', 'ঢাকার বাইরে ডেলিভারি'); ?> - ৳<?php echo get_theme_mod('outside_dhaka_delivery_charge', 0); ?></label>
+                                    <label for="outside_dhaka"><?php echo esc_html(get_theme_mod('outside_dhaka_delivery_title', 'ঢাকার বাইরে ডেলিভারি')); ?> - ৳<?php echo esc_html(get_theme_mod('outside_dhaka_delivery_charge', 0)); ?></label>
                                 </div>
                             </div>
                         </div>
@@ -314,7 +349,7 @@
                                         <?php 
                                         $bkash_icon = get_theme_mod('bkash_icon');
                                         if ($bkash_icon) {
-                                            echo '<img src="' . wp_get_attachment_url($bkash_icon) . '" alt="bKash" class="payment-icon-img">';
+                                            echo '<img src="' . esc_url(wp_get_attachment_url($bkash_icon)) . '" alt="bKash" class="payment-icon-img">';
                                         } else {
                                             echo '<span class="payment-icon bkash-icon">📱</span>';
                                         }
@@ -330,7 +365,7 @@
                                         <?php 
                                         $nagad_icon = get_theme_mod('nagad_icon');
                                         if ($nagad_icon) {
-                                            echo '<img src="' . wp_get_attachment_url($nagad_icon) . '" alt="Nagad" class="payment-icon-img">';
+                                            echo '<img src="' . esc_url(wp_get_attachment_url($nagad_icon)) . '" alt="Nagad" class="payment-icon-img">';
                                         } else {
                                             echo '<span class="payment-icon nagad-icon">💰</span>';
                                         }
@@ -346,7 +381,7 @@
                                         <?php 
                                         $rocket_icon = get_theme_mod('rocket_icon');
                                         if ($rocket_icon) {
-                                            echo '<img src="' . wp_get_attachment_url($rocket_icon) . '" alt="Rocket" class="payment-icon-img">';
+                                            echo '<img src="' . esc_url(wp_get_attachment_url($rocket_icon)) . '" alt="Rocket" class="payment-icon-img">';
                                         } else {
                                             echo '<span class="payment-icon rocket-icon">🚀</span>';
                                         }
@@ -370,43 +405,43 @@
 
                             <div class="payment-instruction" id="bkash-instruction">
                                 <div class="instruction-header">
-                                    <h4 style="color: <?php echo get_theme_mod('bkash_color', '#e2136e'); ?>;">📱 bKash পেমেন্ট</h4>
+                                    <h4 style="color: <?php echo esc_attr(get_theme_mod('bkash_color', '#e2136e')); ?>;">📱 bKash পেমেন্ট</h4>
                                     <div class="number-copy">
-                                        <span id="bkash-number"><?php echo get_theme_mod('bkash_number', '01975669946'); ?></span>
+                                        <span id="bkash-number"><?php echo esc_html(get_theme_mod('bkash_number', '01975669946')); ?></span>
                                         <button type="button" class="copy-btn" onclick="copyNumber('bkash-number')">
                                             <i class="fas fa-copy"></i> Copy
                                         </button>
                                     </div>
                                 </div>
-                                <p><?php echo get_theme_mod('bkash_instruction', 'আর এই নাম্বারে বিকাশ সেন্ডমানি করে ফর্ম এ লিখুন (Personal)'); ?></p>
+                                <p><?php echo esc_html(get_theme_mod('bkash_instruction', 'আর এই নাম্বারে বিকাশ সেন্ডমানি করে ফর্ম এ লিখুন (Personal)')); ?></p>
                                 <input type="text" name="transaction_number" class="form-control transaction-input" placeholder="ট্রানজেকশন নাম্বার লিখুন">
                             </div>
 
                             <div class="payment-instruction" id="nagad-instruction">
                                 <div class="instruction-header">
-                                    <h4 style="color: <?php echo get_theme_mod('nagad_color', '#f47920'); ?>;">💰 Nagad পেমেন্ট</h4>
+                                    <h4 style="color: <?php echo esc_attr(get_theme_mod('nagad_color', '#f47920')); ?>;">💰 Nagad পেমেন্ট</h4>
                                     <div class="number-copy">
-                                        <span id="nagad-number"><?php echo get_theme_mod('nagad_number', '01737146996'); ?></span>
+                                        <span id="nagad-number"><?php echo esc_html(get_theme_mod('nagad_number', '01737146996')); ?></span>
                                         <button type="button" class="copy-btn" onclick="copyNumber('nagad-number')">
                                             <i class="fas fa-copy"></i> Copy
                                         </button>
                                     </div>
                                 </div>
-                                <p><?php echo get_theme_mod('nagad_instruction', 'আর এই নাম্বারে নগদে সেন্ডমানি করে ফর্ম এ লিখুন (Personal)'); ?></p>
+                                <p><?php echo esc_html(get_theme_mod('nagad_instruction', 'আর এই নাম্বারে নগদে সেন্ডমানি করে ফর্ম এ লিখুন (Personal)')); ?></p>
                                 <input type="text" name="transaction_number" class="form-control transaction-input" placeholder="ট্রানজেকশন নাম্বার লিখুন">
                             </div>
 
                             <div class="payment-instruction" id="rocket-instruction">
                                 <div class="instruction-header">
-                                    <h4 style="color: <?php echo get_theme_mod('rocket_color', '#8b1538'); ?>;">🚀 Rocket পেমেন্ট</h4>
+                                    <h4 style="color: <?php echo esc_attr(get_theme_mod('rocket_color', '#8b1538')); ?>;">🚀 Rocket পেমেন্ট</h4>
                                     <div class="number-copy">
-                                        <span id="rocket-number"><?php echo get_theme_mod('rocket_number', '01737146996'); ?></span>
+                                        <span id="rocket-number"><?php echo esc_html(get_theme_mod('rocket_number', '01737146996')); ?></span>
                                         <button type="button" class="copy-btn" onclick="copyNumber('rocket-number')">
                                             <i class="fas fa-copy"></i> Copy
                                         </button>
                                     </div>
                                 </div>
-                                <p><?php echo get_theme_mod('rocket_instruction', 'আর এই নাম্বারে রকেটে সেন্ডমানি করে ফর্ম এ লিখুন (Personal)'); ?></p>
+                                <p><?php echo esc_html(get_theme_mod('rocket_instruction', 'আর এই নাম্বারে রকেটে সেন্ডমানি করে ফর্ম এ লিখুন (Personal)')); ?></p>
                                 <input type="text" name="transaction_number" class="form-control transaction-input" placeholder="ট্রানজেকশন নাম্বার লিখুন">
                             </div>
                         </div>
@@ -465,11 +500,11 @@
 </div>
 
 <!-- Floating Contact Buttons -->
-<a href="tel:<?php echo get_theme_mod('phone_number', '+8801737146996'); ?>" class="callbtnlaptop">
+<a href="tel:<?php echo esc_attr(get_theme_mod('phone_number', '+8801737146996')); ?>" class="callbtnlaptop">
     <i class="fas fa-phone"></i>
 </a>
 
-<a href="https://wa.me/88<?php echo get_theme_mod('whatsapp_number', '01737146996'); ?>" target="_blank" class="float">
+<a href="https://wa.me/88<?php echo esc_attr(get_theme_mod('whatsapp_number', '01737146996')); ?>" target="_blank" class="float">
     <i class="fab fa-whatsapp"></i>
 </a>
 
@@ -519,10 +554,10 @@
                 <button class="invoice-btn invoice-btn-primary" onclick="closeInvoiceModal()">
                     <i class="fas fa-check"></i> ঠিক আছে
                 </button>
-                <a href="tel:<?php echo get_theme_mod('phone_number', '+8801737146996'); ?>" class="invoice-btn invoice-btn-success">
+                <a href="tel:<?php echo esc_attr(get_theme_mod('phone_number', '+8801737146996')); ?>" class="invoice-btn invoice-btn-success">
                     <i class="fas fa-phone"></i> কল করুন
                 </a>
-                <a href="https://wa.me/88<?php echo get_theme_mod('whatsapp_number', '1737146996'); ?>" target="_blank" class="invoice-btn invoice-btn-secondary">
+                <a href="https://wa.me/88<?php echo esc_attr(get_theme_mod('whatsapp_number', '1737146996')); ?>" target="_blank" class="invoice-btn invoice-btn-secondary">
                     <i class="fab fa-whatsapp"></i> WhatsApp
                 </a>
             </div>
@@ -541,279 +576,540 @@ var player;
 var videoPlayStartTime;
 var videoCurrentTime = 0;
 var videoDuration = 0;
+var videoTrackingEnabled = <?php echo get_theme_mod('enable_video_tracking', true) ? 'true' : 'false'; ?>;
 
-function onYouTubeIframeAPIReady() {
-    const videoElement = document.getElementById('youtube-video-player');
-    if (videoElement) {
-        player = new YT.Player('youtube-video-player', {
-            events: {
-                'onReady': onPlayerReady,
-                'onStateChange': onPlayerStateChange
-            }
-        });
+// Global tracking settings
+var deviceTrackingEnabled = <?php echo get_theme_mod('enable_device_tracking', true) ? 'true' : 'false'; ?>;
+var customEventsTrackingEnabled = <?php echo get_theme_mod('enable_custom_events_tracking', true) ? 'true' : 'false'; ?>;
+var deviceDetailsTrackingEnabled = <?php echo get_theme_mod('enable_device_details_tracking', true) ? 'true' : 'false'; ?>;
+var timeSpentTrackingEnabled = <?php echo get_theme_mod('enable_time_spent_tracking', true) ? 'true' : 'false'; ?>;
+var serverTrackingEnabled = <?php echo get_theme_mod('enable_server_tracking', true) ? 'true' : 'false'; ?>;
+
+// Server-side tracking IDs
+var facebookPixelId = '<?php echo esc_js(get_theme_mod('facebook_pixel_id', '')); ?>';
+var ga4MeasurementId = '<?php echo esc_js(get_theme_mod('ga4_measurement_id', '')); ?>';
+var microsoftClarityId = '<?php echo esc_js(get_theme_mod('microsoft_clarity_id', '')); ?>';
+var gtmContainerId = '<?php echo esc_js(get_theme_mod('gtm_container_id', '')); ?>';
+
+// Session ID from PHP
+var phpSessionId = '<?php echo $session_id ?: ''; ?>';
+
+console.log('Tracking Settings:', {
+    deviceTrackingEnabled,
+    customEventsTrackingEnabled,
+    deviceDetailsTrackingEnabled,
+    timeSpentTrackingEnabled,
+    serverTrackingEnabled
+});
+console.log('Server Tracking IDs:', {
+    facebookPixelId,
+    ga4MeasurementId,
+    microsoftClarityId,
+    gtmContainerId
+});
+console.log('PHP Session ID:', phpSessionId);
+
+// ========================================
+// SERVER-SIDE TRACKING FUNCTIONS
+// ========================================
+
+// Server-side event tracking
+function trackServerEvent(eventName, eventData = {}, eventValue = '') {
+    if (!serverTrackingEnabled || typeof ajax_object === 'undefined') {
+        console.log('Server tracking disabled or ajax_object not available');
+        return;
     }
-}
-
-function onPlayerReady(event) {
-    videoDuration = player.getDuration();
-    trackCustomEvent('video_ready', 'YouTube Video Ready', `Duration: ${videoDuration.toFixed(2)}s`);
-}
-
-function onPlayerStateChange(event) {
-    if (event.data == YT.PlayerState.PLAYING) {
-        if (!videoPlayStartTime) {
-            videoPlayStartTime = Date.now();
-        }
-        trackCustomEvent('video_play', 'YouTube Video Play', `Current Time: ${player.getCurrentTime().toFixed(2)}s`);
-    } else if (event.data == YT.PlayerState.PAUSED) {
-        if (videoPlayStartTime) {
-            const timeSpent = (Date.now() - videoPlayStartTime) / 1000;
-            trackCustomEvent('video_play_time', 'YouTube Video Time Spent', timeSpent.toFixed(2));
-            videoPlayStartTime = null; // Reset
-        }
-        trackCustomEvent('video_pause', 'YouTube Video Pause', `Current Time: ${player.getCurrentTime().toFixed(2)}s`);
-    } else if (event.data == YT.PlayerState.ENDED) {
-        if (videoPlayStartTime) {
-            const timeSpent = (Date.now() - videoPlayStartTime) / 1000;
-            trackCustomEvent('video_play_time', 'YouTube Video Time Spent', timeSpent.toFixed(2));
-            videoPlayStartTime = null; // Reset
-        }
-        trackCustomEvent('video_ended', 'YouTube Video Ended', `Total Duration: ${videoDuration.toFixed(2)}s`);
-    } else if (event.data == YT.PlayerState.BUFFERING) {
-        trackCustomEvent('video_buffering', 'YouTube Video Buffering', `Current Time: ${player.getCurrentTime().toFixed(2)}s`);
-    }
-}
-
-
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Swiper with enhanced autoplay
-    const swiper = new Swiper('.reviewSwiper', {
-        slidesPerView: 1,
-        spaceBetween: 20,
-        loop: true,
-        autoplay: {
-            delay: 2500, // Reduced delay for faster auto-slide
-            disableOnInteraction: false,
-            pauseOnMouseEnter: true, // Pause on hover
-        },
-        pagination: {
-            el: '.swiper-pagination',
-            clickable: true,
-        },
-        navigation: {
-            nextEl: '.swiper-button-next',
-            prevEl: '.swiper-button-prev',
-        },
-        breakpoints: {
-            640: {
-                slidesPerView: 2,
-            },
-            768: {
-                slidesPerView: 2,
-            },
-            1024: {
-                slidesPerView: 3,
-            },
-        },
-    });
-
-    // Helper to get cookie value (still needed for session_id)
-    function getCookie(name) {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop().split(';').shift();
-        return null;
-    }
-
-    // Helper to track custom events
-    function trackCustomEvent(eventType, eventName, eventValue = '') {
-        if (typeof ajax_object === 'undefined') {
-            return;
-        }
-        const sessionId = getCookie('device_session');
-        if (!sessionId) return;
-
-        jQuery.post(ajax_object.ajax_url, {
-            action: 'track_custom_event',
-            session_id: sessionId,
-            event_type: eventType,
-            event_name: eventName,
-            event_value: eventValue,
-            nonce: ajax_object.event_nonce // Use the new nonce
-        });
-    }
-
-    // NEW: Function to collect and send client-side device info
-    async function collectAndSendClientDeviceInfo() {
-        if (typeof ajax_object === 'undefined') {
-            return;
-        }
-        const sessionId = getCookie('device_session');
-        if (!sessionId) return;
-
-        const deviceInfo = {
-            session_id: sessionId,
-            language: navigator.language,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            connection_type: navigator.connection ? navigator.connection.effectiveType : 'N/A',
-            memory_info: navigator.deviceMemory || 'N/A',
-            cpu_cores: navigator.hardwareConcurrency || 'N/A',
-            touchscreen_detected: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0) ? 1 : 0,
-            nonce: ajax_object.device_info_nonce // Use the new nonce
-        };
-
-        // Battery Info (async)
-        if ('getBattery' in navigator) {
-            try {
-                const battery = await navigator.getBattery();
-                deviceInfo.battery_level = battery.level;
-                deviceInfo.battery_charging = battery.charging ? 1 : 0;
-
-                // Track battery changes as custom events
-                battery.addEventListener('chargingchange', () => {
-                    trackCustomEvent('battery_status_change', 'Battery Charging Status Changed', JSON.stringify({
-                        level: battery.level,
-                        charging: battery.charging
-                    }));
-                });
-                battery.addEventListener('levelchange', () => {
-                    trackCustomEvent('battery_status_change', 'Battery Level Changed', JSON.stringify({
-                        level: battery.level,
-                        charging: battery.charging
-                    }));
-                });
-
-            } catch (e) {
-                console.warn('Battery API not available or permission denied:', e);
-                deviceInfo.battery_level = null;
-                deviceInfo.battery_charging = null;
-            }
+    
+    console.log('Tracking server event:', { eventName, eventData, eventValue });
+    
+    // Send to server
+    jQuery.post(ajax_object.ajax_url, {
+        action: 'alhadiya_server_event',
+        event_name: eventName,
+        event_data: eventData,
+        event_value: eventValue,
+        server_event_nonce: ajax_object.server_event_nonce
+    }).done(function(response) {
+        if (response.success) {
+            console.log('Server event tracked successfully:', response.data);
         } else {
-            deviceInfo.battery_level = null;
-            deviceInfo.battery_charging = null;
+            console.error('Failed to track server event:', response.data);
         }
+    }).fail(function(xhr, status, error) {
+        console.error('AJAX failed for server event:', error);
+    });
+}
 
-        // Send static device info to server
-        jQuery.post(ajax_object.ajax_url, {
-            action: 'update_client_device_details',
-            ...deviceInfo
-        }, function(response) {
-            if (response.success) {
-                console.log('Client device info updated:', response.data);
-            } else {
-                console.error('Failed to update client device info:', response.data);
-            }
+// Google Tag Manager Data Layer
+function pushToDataLayer(eventName, eventData = {}) {
+    if (typeof dataLayer !== 'undefined') {
+        dataLayer.push({
+            'event': eventName,
+            'event_data': eventData,
+            'session_id': phpSessionId,
+            'timestamp': new Date().toISOString()
         });
+        console.log('Pushed to DataLayer:', eventName, eventData);
+    }
+}
+
+// Microsoft Clarity Integration
+function trackClarityEvent(eventName, eventData = {}) {
+    if (typeof clarity !== 'undefined') {
+        clarity('event', eventName, eventData);
+        console.log('Clarity event tracked:', eventName, eventData);
+    }
+}
+
+// Facebook Pixel Integration (if available)
+function trackFacebookEvent(eventName, eventData = {}) {
+    if (typeof fbq !== 'undefined' && facebookPixelId) {
+        fbq('track', eventName, eventData);
+        console.log('Facebook event tracked:', eventName, eventData);
+    }
+}
+
+// Google Analytics 4 Integration (if available)
+function trackGA4Event(eventName, eventData = {}) {
+    if (typeof gtag !== 'undefined' && ga4MeasurementId) {
+        gtag('event', eventName, {
+            ...eventData,
+            'session_id': phpSessionId,
+            'custom_parameter': 'server_tracked'
+        });
+        console.log('GA4 event tracked:', eventName, eventData);
+    }
+}
+
+// Universal tracking function
+function trackUniversalEvent(eventName, eventData = {}, eventValue = '') {
+    // Server-side tracking
+    trackServerEvent(eventName, eventData, eventValue);
+    
+    // GTM Data Layer
+    pushToDataLayer(eventName, eventData);
+    
+    // Microsoft Clarity
+    trackClarityEvent(eventName, eventData);
+    
+    // Facebook Pixel
+    trackFacebookEvent(eventName, eventData);
+    
+    // Google Analytics 4
+    trackGA4Event(eventName, eventData);
+}
+
+// Helper functions (always available)
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
+function getSessionId() {
+    // First try PHP session ID, then cookie
+    if (phpSessionId && phpSessionId !== '') {
+        console.log('Using PHP session ID:', phpSessionId);
+        return phpSessionId;
+    }
+    
+    const sessionId = getCookie('device_session');
+    console.log('All cookies:', document.cookie);
+    console.log('Looking for device_session cookie...');
+    console.log('Session ID found:', sessionId);
+    return sessionId;
+}
+
+function trackCustomEvent(eventType, eventName, eventValue = '') {
+    if (!customEventsTrackingEnabled || typeof ajax_object === 'undefined') {
+        console.log('Event tracking disabled or ajax_object not available');
+        return;
+    }
+    const sessionId = getSessionId();
+    if (!sessionId) {
+        console.log('No session ID found');
+        return;
     }
 
-    // Call the new function on DOMContentLoaded
-    collectAndSendClientDeviceInfo();
+    console.log('Tracking event:', { eventType, eventName, eventValue });
 
-    // Track Swiper slide changes
-    swiper.on('slideChange', function () {
-        trackCustomEvent('swiper_slide_change', 'Swiper Slide Changed', 'Slide ' + (this.realIndex + 1));
+    // Track to existing system
+    jQuery.post(ajax_object.ajax_url, {
+        action: 'track_custom_event',
+        session_id: sessionId,
+        event_type: eventType,
+        event_name: eventName,
+        event_value: eventValue,
+        nonce: ajax_object.event_nonce
+    }).done(function(response) {
+        console.log('Event tracked successfully:', response);
+    }).fail(function(xhr, status, error) {
+        console.error('Failed to track event:', error);
     });
-    // Track Swiper navigation clicks
-    document.querySelectorAll('.swiper-button-next, .swiper-button-prev').forEach(button => {
-        button.addEventListener('click', function() {
-            trackCustomEvent('swiper_nav_click', 'Swiper Navigation Click', this.classList.contains('swiper-button-next') ? 'Next' : 'Prev');
+    
+    // Universal tracking
+    trackUniversalEvent(eventType, {
+        event_name: eventName,
+        event_value: eventValue,
+        session_id: sessionId
+    }, eventValue);
+}
+
+// ========================================
+// AUTOMATIC EVENT TRACKING
+// ========================================
+
+// Track page load events
+function trackPageLoadEvents() {
+    trackUniversalEvent('page_view', {
+        page_title: document.title,
+        page_url: window.location.href,
+        page_path: window.location.pathname,
+        referrer: document.referrer
+    });
+    
+    trackUniversalEvent('page_load', {
+        load_time: performance.now(),
+        user_agent: navigator.userAgent,
+        screen_resolution: `${screen.width}x${screen.height}`,
+        viewport_size: `${window.innerWidth}x${window.innerHeight}`
+    });
+}
+
+// Track scroll events
+function trackScrollEvents() {
+    let lastScrollDepth = 0;
+    let scrollTimeout;
+    
+    window.addEventListener('scroll', function() {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(function() {
+            const scrollY = window.scrollY;
+            const docHeight = document.documentElement.scrollHeight;
+            const windowHeight = window.innerHeight;
+            const currentScrollDepth = Math.min(100, (scrollY / (docHeight - windowHeight)) * 100);
+
+            if (Math.abs(currentScrollDepth - lastScrollDepth) >= 10) {
+                trackUniversalEvent('scroll_depth', {
+                    scroll_percentage: currentScrollDepth.toFixed(2),
+                    scroll_position: scrollY,
+                    page_height: docHeight
+                }, currentScrollDepth.toFixed(2));
+                lastScrollDepth = currentScrollDepth;
+            }
+        }, 100);
+    });
+}
+
+// Track click events
+function trackClickEvents() {
+    document.addEventListener('click', function(e) {
+        const target = e.target;
+        const tagName = target.tagName.toLowerCase();
+        const className = target.className || '';
+        const id = target.id || '';
+        const text = target.textContent?.trim() || '';
+        const href = target.href || '';
+        
+        // Determine event type
+        let eventType = 'click';
+        let eventData = {
+            element_type: tagName,
+            element_class: className,
+            element_id: id,
+            element_text: text.substring(0, 100),
+            click_position: `${e.clientX},${e.clientY}`,
+            page_url: window.location.href
+        };
+        
+        // Specific event types
+        if (target.matches('.btn, button, a[href="#order"]')) {
+            eventType = 'button_click';
+            eventData.button_type = 'primary';
+        } else if (target.matches('a')) {
+            eventType = 'link_click';
+            eventData.link_url = href;
+        } else if (target.matches('input, select, textarea')) {
+            eventType = 'form_interaction';
+            eventData.field_type = target.type || 'text';
+        }
+        
+        trackUniversalEvent(eventType, eventData);
+    });
+}
+
+// Track form events
+function trackFormEvents() {
+    // Form submission
+    document.addEventListener('submit', function(e) {
+        const form = e.target;
+        const formId = form.id || '';
+        const formAction = form.action || '';
+        
+        trackUniversalEvent('form_submit', {
+            form_id: formId,
+            form_action: formAction,
+            form_method: form.method || 'POST',
+            page_url: window.location.href
         });
     });
-    // Track Swiper pagination clicks
-    document.querySelectorAll('.swiper-pagination-bullet').forEach(bullet => {
-        bullet.addEventListener('click', function() {
-            trackCustomEvent('swiper_pagination_click', 'Swiper Pagination Click', 'Bullet ' + (Array.from(this.parentNode.children).indexOf(this) + 1));
-        });
+    
+    // Form field focus
+    document.addEventListener('focus', function(e) {
+        if (e.target.matches('input, select, textarea')) {
+            trackUniversalEvent('form_field_focus', {
+                field_type: e.target.type || 'text',
+                field_name: e.target.name || '',
+                field_id: e.target.id || '',
+                form_id: e.target.form?.id || ''
+            });
+        }
+    }, true);
+    
+    // Form field change
+    document.addEventListener('change', function(e) {
+        if (e.target.matches('input, select, textarea')) {
+            trackUniversalEvent('form_field_change', {
+                field_type: e.target.type || 'text',
+                field_name: e.target.name || '',
+                field_id: e.target.id || '',
+                form_id: e.target.form?.id || ''
+            });
+        }
     });
+}
 
-    // Intersection Observer for section views and time spent
-    const sections = document.querySelectorAll('.Corse_container, .review-slider, .faq_section, .order_section, .video-container');
-    const sectionTimers = {};
-
-    const observer = new IntersectionObserver((entries) => {
+// Track section visibility
+function trackSectionVisibility() {
+    const sections = [
+        { id: 'course-section-1', name: 'অর্গানিক মেহেদী তৈরির সহজ উপায়' },
+        { id: 'course-section-2', name: 'মেহেদী রঙ বাড়ানোর গোপন টিপস' },
+        { id: 'course-section-3', name: 'প্যাকেজিং ও সার্টিফিকেশন' }
+    ];
+    
+    const sectionObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             const sectionId = entry.target.id;
+            const sectionName = sections.find(s => s.id === sectionId)?.name || sectionId;
+            
             if (entry.isIntersecting) {
-                // Section entered viewport
-                if (!sectionTimers[sectionId]) {
-                    sectionTimers[sectionId] = Date.now();
-                    trackCustomEvent('section_view', 'Section Viewed', sectionId);
-                }
-            } else {
-                // Section left viewport
-                if (sectionTimers[sectionId]) {
-                    const timeSpent = (Date.now() - sectionTimers[sectionId]) / 1000; // in seconds
-                    // Changed eventName to include sectionId directly for clarity in logs
-                    trackCustomEvent('section_time_spent', `Time Spent on Section: ${sectionId}`, `${timeSpent.toFixed(2)}s`);
-                    delete sectionTimers[sectionId]; // Reset timer
-                }
+                trackUniversalEvent('section_view', {
+                    section_id: sectionId,
+                    section_name: sectionName,
+                    visibility_percentage: Math.round(entry.intersectionRatio * 100),
+                    page_url: window.location.href
+                });
             }
         });
-    }, { threshold: 0.5 }); // Trigger when 50% of the section is visible
-
+    }, { threshold: 0.5 });
+    
     sections.forEach(section => {
-        observer.observe(section);
-    });
-
-    // Intersection Observer for floating buttons (call and WhatsApp)
-    const floatingButtons = document.querySelectorAll('.callbtnlaptop, .float');
-    const floatingButtonTimers = {};
-
-    const floatingButtonObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            const buttonName = entry.target.classList.contains('callbtnlaptop') ? 'Call Button' : 'WhatsApp Button';
-            if (entry.isIntersecting) {
-                if (!floatingButtonTimers[buttonName]) {
-                    floatingButtonTimers[buttonName] = Date.now();
-                    trackCustomEvent('button_visible', `${buttonName} Visible`, 'Entered Viewport');
-                }
-            } else {
-                if (floatingButtonTimers[buttonName]) {
-                    const timeSpent = (Date.now() - floatingButtonTimers[buttonName]) / 1000;
-                    trackCustomEvent('button_time_spent', `Time Spent on ${buttonName}`, `${timeSpent.toFixed(2)}s`);
-                    delete floatingButtonTimers[buttonName];
-                }
-            }
-        });
-    }, { threshold: 0.5 }); // Trigger when 50% of the button is visible
-
-    floatingButtons.forEach(button => {
-        floatingButtonObserver.observe(button);
-    });
-
-    // Track floating button clicks
-    document.querySelector('.callbtnlaptop')?.addEventListener('click', function() {
-        trackCustomEvent('button_click', 'Call Button Clicked', 'Floating Call Button');
-    });
-    document.querySelector('.float')?.addEventListener('click', function() {
-        trackCustomEvent('button_click', 'WhatsApp Button Clicked', 'Floating WhatsApp Button');
-    });
-
-    // Track scroll depth (enhanced)
-    let lastScrollDepth = 0;
-    window.addEventListener('scroll', function() {
-        const scrollY = window.scrollY;
-        const docHeight = document.documentElement.scrollHeight;
-        const windowHeight = window.innerHeight;
-        const currentScrollDepth = Math.min(100, (scrollY / (docHeight - windowHeight)) * 100);
-
-        if (Math.abs(currentScrollDepth - lastScrollDepth) >= 10) { // Track every 10% change
-            trackCustomEvent('scroll_depth', 'Page Scroll Depth', currentScrollDepth.toFixed(2));
-            lastScrollDepth = currentScrollDepth;
+        const element = document.getElementById(section.id);
+        if (element) {
+            sectionObserver.observe(element);
         }
     });
+}
 
-    // Track click position
-    document.addEventListener('click', function(event) {
-        trackCustomEvent('click_position', 'Click Position', `X:${event.clientX}, Y:${event.clientY}`);
+// Track time spent on page
+function trackTimeSpent() {
+    const startTime = Date.now();
+    
+    // Track every 30 seconds
+    setInterval(() => {
+        const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+        if (timeSpent % 30 === 0 && timeSpent > 0) {
+            trackUniversalEvent('time_spent', {
+                time_spent_seconds: timeSpent,
+                page_url: window.location.href
+            }, timeSpent.toString());
+        }
+    }, 1000);
+    
+    // Track on page unload
+    window.addEventListener('beforeunload', () => {
+        const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+        if (timeSpent > 10) {
+            trackUniversalEvent('page_exit', {
+                time_spent_seconds: timeSpent,
+                page_url: window.location.href
+            }, timeSpent.toString());
+        }
     });
+}
 
-    // Track last key press
-    document.addEventListener('keydown', function(event) {
-        trackCustomEvent('key_press', 'Key Pressed', event.key);
+// ========================================
+// INITIALIZATION
+// ========================================
+
+// Global function for device tracking initialization
+function initializeDeviceTracking() {
+    console.log('Initializing device tracking...');
+    
+    // Collect device details
+    var deviceDetails = {
+        screen_size: window.screen.width + 'x' + window.screen.height,
+        language: navigator.language || '',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+        connection_type: (navigator.connection && navigator.connection.effectiveType) ? navigator.connection.effectiveType : '',
+        battery_level: null,
+        memory_info: navigator.deviceMemory || '',
+        cpu_cores: navigator.hardwareConcurrency || '',
+        touchscreen_detected: ('ontouchstart' in window) ? 1 : 0
+    };
+    
+    // Get battery level if available
+    if (navigator.getBattery) {
+        navigator.getBattery().then(function(battery) {
+            deviceDetails.battery_level = battery.level;
+            sendDeviceDetails(deviceDetails);
+        }).catch(function() {
+            sendDeviceDetails(deviceDetails);
+        });
+    } else {
+        sendDeviceDetails(deviceDetails);
+    }
+}
+
+function sendDeviceDetails(deviceDetails) {
+    if (typeof ajax_object === 'undefined') {
+        console.log('ajax_object not available for device details');
+        return;
+    }
+    
+    // Send device details to server via AJAX
+    jQuery.ajax({
+        url: ajax_object.ajax_url,
+        type: 'POST',
+        data: {
+            action: 'alhadiya_server_event',
+            event_name: 'device_details',
+            event_data: deviceDetails,
+            event_value: '',
+            server_event_nonce: ajax_object.server_event_nonce
+        },
+        success: function(response) {
+            if (response.success) {
+                console.log('Device details sent successfully:', response.data);
+            } else {
+                console.error('Failed to send device details:', response.data);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Failed to send device details:', error);
+        }
     });
+}
 
-
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM Content Loaded');
+    console.log('ajax_object available:', typeof ajax_object !== 'undefined');
+    if (typeof ajax_object !== 'undefined') {
+        console.log('ajax_object:', ajax_object);
+    }
+    
+    // Check for session ID immediately
+    const initialSessionId = getSessionId();
+    console.log('Initial session ID check:', initialSessionId);
+    
+    // Initialize automatic tracking
+    if (serverTrackingEnabled) {
+        console.log('Initializing server-side tracking...');
+        
+        // Track page load events
+        trackPageLoadEvents();
+        
+        // Track scroll events
+        trackScrollEvents();
+        
+        // Track click events
+        trackClickEvents();
+        
+        // Track form events
+        trackFormEvents();
+        
+        // Track section visibility
+        trackSectionVisibility();
+        
+        // Track time spent
+        trackTimeSpent();
+    }
+    
+    // Initialize Swiper with enhanced autoplay
+    const swiperContainer = document.querySelector('.reviewSwiper');
+    if (swiperContainer) {
+        const slidesCount = swiperContainer.querySelectorAll('.swiper-slide').length;
+        console.log('Swiper slides count:', slidesCount);
+        
+        const swiper = new Swiper('.reviewSwiper', {
+            slidesPerView: 1,
+            spaceBetween: 20,
+            loop: slidesCount > 1, // Only enable loop if there are multiple slides
+            autoplay: slidesCount > 1 ? {
+                delay: 2500,
+                disableOnInteraction: false,
+                pauseOnMouseEnter: true,
+            } : false,
+            pagination: {
+                el: '.swiper-pagination',
+                clickable: true,
+            },
+            navigation: {
+                nextEl: '.swiper-button-next',
+                prevEl: '.swiper-button-prev',
+            },
+        });
+        
+        // Store swiper instance globally for event tracking
+        window.reviewSwiper = swiper;
+    }
+    
+    // Initialize tracking based on settings
+    if (deviceTrackingEnabled) {
+        console.log('Device tracking enabled, initializing...');
+        initializeDeviceTracking();
+        
+        if (timeSpentTrackingEnabled) {
+            console.log('Time spent tracking enabled');
+        }
+        
+        if (deviceDetailsTrackingEnabled) {
+            console.log('Device details tracking enabled');
+        }
+    } else {
+        console.log('Device tracking disabled');
+    }
+    
+    // Track custom events if enabled
+    if (customEventsTrackingEnabled) {
+        console.log('Custom events tracking enabled');
+        
+        // Track Swiper interactions
+        if (typeof window.reviewSwiper !== 'undefined' && window.reviewSwiper) {
+            window.reviewSwiper.on('slideChange', function () {
+                trackUniversalEvent('swiper_slide_change', {
+                    slide_index: this.realIndex + 1,
+                    total_slides: this.slides.length
+                });
+            });
+        }
+        
+        // Track FAQ accordion clicks
+        document.querySelectorAll('.accordion-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const faqTitle = this.textContent.trim();
+                const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                trackUniversalEvent('faq_toggle', {
+                    faq_title: faqTitle,
+                    action: isExpanded ? 'close' : 'open'
+                });
+            });
+        });
+    } else {
+        console.log('Custom events tracking disabled');
+    }
+    
     // Product selection and price calculation
     const productRadios = document.querySelectorAll('input[name="product_id"]');
     const deliveryRadios = document.querySelectorAll('input[name="delivery_zone"]');
@@ -947,15 +1243,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Track FAQ accordion clicks
-    document.querySelectorAll('.accordion-button').forEach(button => {
-        button.addEventListener('click', function() {
-            const faqTitle = this.textContent.trim();
-            const isExpanded = this.getAttribute('aria-expanded') === 'true';
-            trackCustomEvent('faq_toggle', isExpanded ? 'FAQ Closed' : 'FAQ Opened', faqTitle);
-        });
-    });
-
     // Enhanced form submission with better error handling
     const orderForm = document.getElementById('wc-order-form');
     if (orderForm) {
@@ -1083,7 +1370,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Send screen size to server once per session
-    const sessionId = getCookie('device_session');
+    const sessionId = getSessionId();
     if (sessionId && typeof jQuery !== 'undefined' && typeof ajax_object !== 'undefined') {
         const screenWidth = window.screen.width;
         const screenHeight = window.screen.height;
@@ -1103,6 +1390,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
+
+
 });
 
 function copyNumber(elementId) {
@@ -1170,45 +1459,26 @@ if (invoiceModal) {
 // Ensure time spent for visible sections and buttons is sent on page unload
 window.addEventListener('beforeunload', function() {
     // Track time spent for any currently visible sections
-    for (const sectionId in sectionTimers) {
-        if (sectionTimers.hasOwnProperty(sectionId)) {
-            const timeSpent = (Date.now() - sectionTimers[sectionId]) / 1000;
-            // Use navigator.sendBeacon for reliable data transmission on unload
-            if (navigator.sendBeacon) {
-                const formData = new FormData();
-                formData.append('action', 'track_custom_event');
-                formData.append('session_id', getCookie('device_session'));
-                formData.append('event_type', 'section_time_spent');
-                formData.append('event_name', `Time Spent on Section: ${sectionId} (Unload)`);
-                formData.append('event_value', `${timeSpent.toFixed(2)}s`);
-                formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
-                navigator.sendBeacon(ajax_object.ajax_url, formData);
-            } else {
-                // Fallback for older browsers (less reliable on unload)
-                trackCustomEvent('section_time_spent', `Time Spent on Section: ${sectionId} (Unload)`, `${timeSpent.toFixed(2)}s`);
-            }
-        }
-    }
-
-    // Track time spent for any currently visible floating buttons
-    for (const buttonName in floatingButtonTimers) {
-        if (floatingButtonTimers.hasOwnProperty(buttonName)) {
-            const timeSpent = (Date.now() - floatingButtonTimers[buttonName]) / 1000;
-            if (navigator.sendBeacon) {
-                const formData = new FormData();
-                formData.append('action', 'track_custom_event');
-                formData.append('session_id', getCookie('device_session'));
-                formData.append('event_type', 'button_time_spent');
-                formData.append('event_name', `Time Spent on ${buttonName} (Unload)`);
-                formData.append('event_value', `${timeSpent.toFixed(2)}s`);
-                formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
-                navigator.sendBeacon(ajax_object.ajax_url, formData);
-            } else {
-                // Fallback for older browsers
-                trackCustomEvent('button_time_spent', `Time Spent on ${buttonName} (Unload)`, `${timeSpent.toFixed(2)}s`);
-            }
-        }
-    }
+    // This sectionTimers object is not defined in the provided PHP, so it's removed.
+    // for (const sectionId in sectionTimers) {
+    //     if (sectionTimers.hasOwnProperty(sectionId)) {
+    //         const timeSpent = (Date.now() - sectionTimers[sectionId]) / 1000;
+    //         // Use navigator.sendBeacon for reliable data transmission on unload
+    //         if (navigator.sendBeacon) {
+    //             const formData = new FormData();
+    //             formData.append('action', 'track_custom_event');
+    //             formData.append('session_id', getSessionId()); // Use the new getSessionId()
+    //             formData.append('event_type', 'section_time_spent');
+    //             formData.append('event_name', `Time Spent on Section: ${sectionId} (Unload)`);
+    //             formData.append('event_value', `${timeSpent.toFixed(2)}s`);
+    //             formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
+    //             navigator.sendBeacon(ajax_object.ajax_url, formData);
+    //         } else {
+    //             // Fallback for older browsers (less reliable on unload)
+    //             trackCustomEvent('section_time_spent', `Time Spent on Section: ${sectionId} (Unload)`, `${timeSpent.toFixed(2)}s`);
+    //         }
+    //     }
+    // }
 });
 </script>
 
