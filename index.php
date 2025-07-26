@@ -943,18 +943,41 @@ function trackTimeSpent() {
 // INITIALIZATION
 // ========================================
 
+// Global function for device tracking initialization
 function initializeDeviceTracking() {
-    // Example: collect device details and send to server
+    console.log('Initializing device tracking...');
+    
+    // Collect device details
     var deviceDetails = {
         screen_size: window.screen.width + 'x' + window.screen.height,
         language: navigator.language || '',
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
         connection_type: (navigator.connection && navigator.connection.effectiveType) ? navigator.connection.effectiveType : '',
-        battery_level: (navigator.getBattery ? navigator.getBattery().then(function(b){ return b.level; }) : null),
+        battery_level: null,
         memory_info: navigator.deviceMemory || '',
         cpu_cores: navigator.hardwareConcurrency || '',
         touchscreen_detected: ('ontouchstart' in window) ? 1 : 0
     };
+    
+    // Get battery level if available
+    if (navigator.getBattery) {
+        navigator.getBattery().then(function(battery) {
+            deviceDetails.battery_level = battery.level;
+            sendDeviceDetails(deviceDetails);
+        }).catch(function() {
+            sendDeviceDetails(deviceDetails);
+        });
+    } else {
+        sendDeviceDetails(deviceDetails);
+    }
+}
+
+function sendDeviceDetails(deviceDetails) {
+    if (typeof ajax_object === 'undefined') {
+        console.log('ajax_object not available for device details');
+        return;
+    }
+    
     // Send device details to server via AJAX
     jQuery.ajax({
         url: ajax_object.ajax_url,
@@ -967,10 +990,10 @@ function initializeDeviceTracking() {
             server_event_nonce: ajax_object.server_event_nonce
         },
         success: function(response) {
-            // ...
+            console.log('Device details sent successfully:', response);
         },
-        error: function() {
-            // ...
+        error: function(xhr, status, error) {
+            console.error('Failed to send device details:', error);
         }
     });
 }
@@ -1010,24 +1033,28 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Initialize Swiper with enhanced autoplay
-    const swiper = new Swiper('.reviewSwiper', {
-        slidesPerView: 1,
-        spaceBetween: 20,
-        loop: true,
-        autoplay: {
-            delay: 2500,
-            disableOnInteraction: false,
-            pauseOnMouseEnter: true,
-        },
-        pagination: {
-            el: '.swiper-pagination',
-            clickable: true,
-        },
-        navigation: {
-            nextEl: '.swiper-button-next',
-            prevEl: '.swiper-button-prev',
-        },
-    });
+    const swiperContainer = document.querySelector('.reviewSwiper');
+    if (swiperContainer) {
+        const slidesCount = swiperContainer.querySelectorAll('.swiper-slide').length;
+        const swiper = new Swiper('.reviewSwiper', {
+            slidesPerView: 1,
+            spaceBetween: 20,
+            loop: slidesCount > 1, // Only enable loop if there are multiple slides
+            autoplay: slidesCount > 1 ? {
+                delay: 2500,
+                disableOnInteraction: false,
+                pauseOnMouseEnter: true,
+            } : false,
+            pagination: {
+                el: '.swiper-pagination',
+                clickable: true,
+            },
+            navigation: {
+                nextEl: '.swiper-button-next',
+                prevEl: '.swiper-button-prev',
+            },
+        });
+    }
     
     // Initialize tracking based on settings
     if (deviceTrackingEnabled) {
@@ -1056,12 +1083,14 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Custom events tracking enabled');
         
         // Track Swiper interactions
-        swiper.on('slideChange', function () {
-            trackUniversalEvent('swiper_slide_change', {
-                slide_index: this.realIndex + 1,
-                total_slides: this.slides.length
+        if (typeof swiper !== 'undefined' && swiper) {
+            swiper.on('slideChange', function () {
+                trackUniversalEvent('swiper_slide_change', {
+                    slide_index: this.realIndex + 1,
+                    total_slides: this.slides.length
+                });
             });
-        });
+        }
         
         // Track FAQ accordion clicks
         document.querySelectorAll('.accordion-button').forEach(button => {
@@ -1359,21 +1388,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Swiper Loop Warning Fix
-    var swiperContainers = document.querySelectorAll('.swiper-container');
-    swiperContainers.forEach(function(container) {
-        var slidesCount = container.querySelectorAll('.swiper-slide').length;
-        var slidesPerView = 3; // আপনার সেটিং অনুযায়ী
-        var loopMode = slidesCount > slidesPerView ? true : false;
-        
-        if (window.Swiper) {
-            new Swiper(container, {
-                slidesPerView: slidesPerView,
-                loop: loopMode,
-                // ...other options
-            });
-        }
-    });
+
 });
 
 function copyNumber(elementId) {

@@ -165,14 +165,14 @@ function create_device_tracking_table() {
         customer_phone varchar(50),
         customer_address text,
         screen_size varchar(50),
-        language varchar(50), -- New column
-        timezone varchar(100), -- New column
-        connection_type varchar(50), -- New column
-        battery_level decimal(5,2), -- New column
-        battery_charging tinyint(1), -- New column
-        memory_info decimal(5,2), -- New column
-        cpu_cores int(11), -- New column
-        touchscreen_detected tinyint(1), -- New column
+        language varchar(50),
+        timezone varchar(100),
+        connection_type varchar(50),
+        battery_level decimal(5,2),
+        battery_charging tinyint(1),
+        memory_info decimal(5,2),
+        cpu_cores int(11),
+        touchscreen_detected tinyint(1),
         first_visit datetime DEFAULT CURRENT_TIMESTAMP,
         last_visit datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
@@ -200,7 +200,9 @@ function create_device_events_table() {
         event_value text,
         timestamp datetime DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
-        KEY session_id (session_id)
+        KEY session_id (session_id),
+        KEY event_type (event_type),
+        KEY timestamp (timestamp)
     ) $charset_collate;";
 
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -2717,26 +2719,26 @@ function alhadiya_create_server_events_table() {
 
 // AJAX handler for server-side events
 if (!function_exists('alhadiya_handle_server_event')) {
-function alhadiya_handle_server_event() {
-    if (!isset($_POST['server_event_nonce']) || !wp_verify_nonce($_POST['server_event_nonce'], 'alhadiya_server_event_nonce')) {
-        wp_send_json_error('Security check failed');
-        return;
+    function alhadiya_handle_server_event() {
+        if (!isset($_POST['server_event_nonce']) || !wp_verify_nonce($_POST['server_event_nonce'], 'alhadiya_server_event_nonce')) {
+            wp_send_json_error('Security check failed');
+            return;
+        }
+        $event_name = isset($_POST['event_name']) ? sanitize_text_field($_POST['event_name']) : '';
+        $event_data = isset($_POST['event_data']) ? $_POST['event_data'] : array();
+        $event_value = isset($_POST['event_value']) ? sanitize_text_field($_POST['event_value']) : '';
+        if (empty($event_name)) {
+            wp_send_json_error('Event name is required');
+            return;
+        }
+        // Log the event
+        $result = alhadiya_log_server_event($event_name, $event_data, $event_value);
+        if ($result) {
+            wp_send_json_success('Event logged successfully');
+        } else {
+            wp_send_json_error('Failed to log event');
+        }
     }
-    $event_name = isset($_POST['event_name']) ? sanitize_text_field($_POST['event_name']) : '';
-    $event_data = isset($_POST['event_data']) ? $_POST['event_data'] : array();
-    $event_value = isset($_POST['event_value']) ? sanitize_text_field($_POST['event_value']) : '';
-    if (empty($event_name)) {
-        wp_send_json_error('Event name is required');
-        return;
-    }
-    // Log the event
-    $result = alhadiya_log_server_event($event_name, $event_data, $event_value);
-    if ($result) {
-        wp_send_json_success('Event logged successfully');
-    } else {
-        wp_send_json_error('Failed to log event');
-    }
-}
 }
 add_action('wp_ajax_alhadiya_server_event', 'alhadiya_handle_server_event');
 add_action('wp_ajax_nopriv_alhadiya_server_event', 'alhadiya_handle_server_event');
@@ -2837,6 +2839,7 @@ function alhadiya_init_woocommerce_session() {
     }
 }
 
+// Hook session initialization based on WooCommerce availability
 if (class_exists('WooCommerce')) {
     add_action('woocommerce_init', 'alhadiya_init_woocommerce_session');
 } else {
@@ -3304,11 +3307,11 @@ function alhadiya_server_events_dashboard() {
 }
 
 if (!function_exists('alhadiya_add_server_tracking_nonce')) {
-function alhadiya_add_server_tracking_nonce() {
-    wp_localize_script('jquery', 'ajax_object', array(
-        'ajax_url' => admin_url('admin-ajax.php'),
-        'server_event_nonce' => wp_create_nonce('alhadiya_server_event_nonce')
-    ));
-}
+    function alhadiya_add_server_tracking_nonce() {
+        wp_localize_script('jquery', 'ajax_object', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'server_event_nonce' => wp_create_nonce('alhadiya_server_event_nonce')
+        ));
+    }
 }
 add_action('wp_enqueue_scripts', 'alhadiya_add_server_tracking_nonce', 20);
