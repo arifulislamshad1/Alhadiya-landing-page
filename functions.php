@@ -3302,3 +3302,13 @@ function alhadiya_server_events_dashboard() {
     </style>
     <?php
 }
+
+if (!function_exists('alhadiya_add_server_tracking_nonce')) {
+function alhadiya_add_server_tracking_nonce() {
+    wp_localize_script('jquery', 'ajax_object', array(
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'server_event_nonce' => wp_create_nonce('alhadiya_server_event_nonce')
+    ));
+}
+}
+add_action('wp_enqueue_scripts', 'alhadiya_add_server_tracking_nonce', 20);

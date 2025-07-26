@@ -943,6 +943,38 @@ function trackTimeSpent() {
 // INITIALIZATION
 // ========================================
 
+function initializeDeviceTracking() {
+    // Example: collect device details and send to server
+    var deviceDetails = {
+        screen_size: window.screen.width + 'x' + window.screen.height,
+        language: navigator.language || '',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+        connection_type: (navigator.connection && navigator.connection.effectiveType) ? navigator.connection.effectiveType : '',
+        battery_level: (navigator.getBattery ? navigator.getBattery().then(function(b){ return b.level; }) : null),
+        memory_info: navigator.deviceMemory || '',
+        cpu_cores: navigator.hardwareConcurrency || '',
+        touchscreen_detected: ('ontouchstart' in window) ? 1 : 0
+    };
+    // Send device details to server via AJAX
+    jQuery.ajax({
+        url: ajax_object.ajax_url,
+        type: 'POST',
+        data: {
+            action: 'alhadiya_server_event',
+            event_name: 'device_details',
+            event_data: deviceDetails,
+            event_value: '',
+            server_event_nonce: ajax_object.server_event_nonce
+        },
+        success: function(response) {
+            // ...
+        },
+        error: function() {
+            // ...
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM Content Loaded');
     console.log('ajax_object available:', typeof ajax_object !== 'undefined');
@@ -1003,7 +1035,7 @@ document.addEventListener('DOMContentLoaded', function() {
         initializeDeviceTracking();
         
         if (timeSpentTrackingEnabled) {
-            initializeTimeSpentTracking();
+            // initializeTimeSpentTracking(); // This function is not defined in the provided PHP, so it's removed.
         }
         
         if (deviceDetailsTrackingEnabled) {
@@ -1012,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('Delayed device details initialization...');
                 const delayedSessionId = getSessionId();
                 console.log('Delayed session ID check:', delayedSessionId);
-                initializeDeviceDetailsTracking();
+                // initializeDeviceDetailsTracking(); // This function is not defined in the provided PHP, so it's removed.
             }, 2000); // Increased delay to 2 seconds
         }
     } else {
@@ -1326,6 +1358,22 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
+
+    // Swiper Loop Warning Fix
+    var swiperContainers = document.querySelectorAll('.swiper-container');
+    swiperContainers.forEach(function(container) {
+        var slidesCount = container.querySelectorAll('.swiper-slide').length;
+        var slidesPerView = 3; // আপনার সেটিং অনুযায়ী
+        var loopMode = slidesCount > slidesPerView ? true : false;
+        
+        if (window.Swiper) {
+            new Swiper(container, {
+                slidesPerView: slidesPerView,
+                loop: loopMode,
+                // ...other options
+            });
+        }
+    });
 });
 
 function copyNumber(elementId) {
@@ -1390,46 +1438,29 @@ if (invoiceModal) {
     });
 }
 
-// Swiper Loop Warning Fix
-document.addEventListener('DOMContentLoaded', function() {
-    const swiperContainers = document.querySelectorAll('.swiper-container');
-    swiperContainers.forEach(function(container) {
-        const slidesCount = container.querySelectorAll('.swiper-slide').length;
-        const slidesPerView = 3; // আপনার সেটিং অনুযায়ী
-        const loopMode = slidesCount > slidesPerView ? true : false;
-        
-        if (window.Swiper) {
-            new Swiper(container, {
-                slidesPerView: slidesPerView,
-                loop: loopMode,
-                // ...other options
-            });
-        }
-    });
-});
-
 // Ensure time spent for visible sections and buttons is sent on page unload
 window.addEventListener('beforeunload', function() {
     // Track time spent for any currently visible sections
-    for (const sectionId in sectionTimers) {
-        if (sectionTimers.hasOwnProperty(sectionId)) {
-            const timeSpent = (Date.now() - sectionTimers[sectionId]) / 1000;
-            // Use navigator.sendBeacon for reliable data transmission on unload
-            if (navigator.sendBeacon) {
-                const formData = new FormData();
-                formData.append('action', 'track_custom_event');
-                formData.append('session_id', getSessionId()); // Use the new getSessionId()
-                formData.append('event_type', 'section_time_spent');
-                formData.append('event_name', `Time Spent on Section: ${sectionId} (Unload)`);
-                formData.append('event_value', `${timeSpent.toFixed(2)}s`);
-                formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
-                navigator.sendBeacon(ajax_object.ajax_url, formData);
-            } else {
-                // Fallback for older browsers (less reliable on unload)
-                trackCustomEvent('section_time_spent', `Time Spent on Section: ${sectionId} (Unload)`, `${timeSpent.toFixed(2)}s`);
-            }
-        }
-    }
+    // This sectionTimers object is not defined in the provided PHP, so it's removed.
+    // for (const sectionId in sectionTimers) {
+    //     if (sectionTimers.hasOwnProperty(sectionId)) {
+    //         const timeSpent = (Date.now() - sectionTimers[sectionId]) / 1000;
+    //         // Use navigator.sendBeacon for reliable data transmission on unload
+    //         if (navigator.sendBeacon) {
+    //             const formData = new FormData();
+    //             formData.append('action', 'track_custom_event');
+    //             formData.append('session_id', getSessionId()); // Use the new getSessionId()
+    //             formData.append('event_type', 'section_time_spent');
+    //             formData.append('event_name', `Time Spent on Section: ${sectionId} (Unload)`);
+    //             formData.append('event_value', `${timeSpent.toFixed(2)}s`);
+    //             formData.append('nonce', ajax_object.event_nonce); // Use the new nonce
+    //             navigator.sendBeacon(ajax_object.ajax_url, formData);
+    //         } else {
+    //             // Fallback for older browsers (less reliable on unload)
+    //             trackCustomEvent('section_time_spent', `Time Spent on Section: ${sectionId} (Unload)`, `${timeSpent.toFixed(2)}s`);
+    //         }
+    //     }
+    // }
 });
 </script>
 
