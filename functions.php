@@ -94,6 +94,14 @@ function create_course_post_types() {
 }
 add_action('init', 'create_course_post_types');
 
+// Ensure database tables are created
+function ensure_tracking_tables_exist() {
+    create_device_tracking_table();
+    create_device_events_table();
+    alhadiya_create_server_events_table();
+}
+add_action('init', 'ensure_tracking_tables_exist');
+
 // Insert default FAQs on theme activation if they don't exist
 function alhadiya_insert_default_faqs() {
     $faqs = array(
@@ -303,6 +311,7 @@ function track_enhanced_device_info() {
     if (!isset($_COOKIE['device_session'])) {
         $cookie_domain = parse_url(get_site_url(), PHP_URL_HOST);
         setcookie('device_session', $session_id, time() + (86400 * 30), '/', $cookie_domain, is_ssl(), false);
+        $_COOKIE['device_session'] = $session_id; // Set in current request
     }
     
     // Parse user agent for device info
@@ -2490,6 +2499,9 @@ function alhadiya_init_server_session() {
         return sanitize_text_field($_COOKIE['device_session']);
     }
     
+    // Generate a new session ID
+    $session_id = 'ss_' . uniqid() . '_' . time();
+    
     // Use WooCommerce session if available, otherwise fallback to PHP session
     if (class_exists('WooCommerce') && function_exists('WC')) {
         try {
@@ -2499,13 +2511,8 @@ function alhadiya_init_server_session() {
             }
             
             // Store our custom session ID in WooCommerce session
-            if (!WC()->session->get('alhadiya_session_id')) {
-                $custom_session_id = 'ss_' . uniqid() . '_' . time();
-                WC()->session->set('alhadiya_session_id', $custom_session_id);
-                return $custom_session_id;
-            }
-            
-            return WC()->session->get('alhadiya_session_id');
+            WC()->session->set('alhadiya_session_id', $session_id);
+            return $session_id;
         } catch (Exception $e) {
             // Fallback to PHP session if WooCommerce session fails
             error_log('WooCommerce session error: ' . $e->getMessage());
@@ -2517,11 +2524,8 @@ function alhadiya_init_server_session() {
         session_start();
     }
     
-    if (!isset($_SESSION['alhadiya_session_id'])) {
-        $_SESSION['alhadiya_session_id'] = 'ss_' . uniqid() . '_' . time();
-    }
-    
-    return $_SESSION['alhadiya_session_id'];
+    $_SESSION['alhadiya_session_id'] = $session_id;
+    return $session_id;
 }
 
 // Server-side event logger
@@ -2757,6 +2761,15 @@ if (!function_exists('alhadiya_add_server_tracking_nonce')) {
     function alhadiya_add_server_tracking_nonce() {
         wp_localize_script('jquery', 'ajax_object', array(
             'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('alhadiya_nonce'),
+            'wc_ajax_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('%%endpoint%%') : '',
+            'dhaka_delivery_charge' => get_theme_mod('dhaka_delivery_charge', 0),
+            'outside_dhaka_delivery_charge' => get_theme_mod('outside_dhaka_delivery_charge', 0),
+            'phone_number' => get_theme_mod('phone_number', '+8801737146996'),
+            'device_info_nonce' => wp_create_nonce('alhadiya_device_info_nonce'),
+            'event_nonce' => wp_create_nonce('alhadiya_event_nonce'),
+            'screen_size_nonce' => wp_create_nonce('alhadiya_screen_size_nonce'),
+            'activity_nonce' => wp_create_nonce('alhadiya_activity_nonce'),
             'server_event_nonce' => wp_create_nonce('alhadiya_server_event_nonce')
         ));
     }
@@ -2865,6 +2878,9 @@ if (class_exists('WooCommerce')) {
 } else {
     add_action('init', 'alhadiya_init_server_session');
 }
+
+// Ensure session is initialized early for tracking
+add_action('wp', 'alhadiya_init_server_session', 1);
 
 // Add tracking settings to customizer
 add_action('customize_register', 'alhadiya_add_tracking_settings');

@@ -998,10 +998,12 @@ function sendDeviceDetails(deviceDetails) {
     });
 }
 
-// Initialize device tracking immediately when script loads
-if (deviceTrackingEnabled) {
-    initializeDeviceTracking();
-}
+// Initialize device tracking when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    if (deviceTrackingEnabled) {
+        initializeDeviceTracking();
+    }
+});
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM Content Loaded');
@@ -1069,7 +1071,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize tracking based on settings
     if (deviceTrackingEnabled) {
         console.log('Device tracking enabled, initializing...');
-        // Device tracking is already initialized above
         
         if (timeSpentTrackingEnabled) {
             console.log('Time spent tracking enabled');
