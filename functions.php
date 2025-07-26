@@ -322,14 +322,14 @@ function track_enhanced_device_info() {
     
     // Screen size and new device info will be updated via AJAX from client-side
     $screen_size = $existing ? $existing->screen_size : '';
-    $language = $existing ? $existing->language : '';
-    $timezone = $existing ? $existing->timezone : '';
+    $language = (is_object($existing) && property_exists($existing, 'language')) ? $existing->language : '';
+    $timezone = (is_object($existing) && property_exists($existing, 'timezone')) ? $existing->timezone : '';
     $connection_type = $existing ? $existing->connection_type : '';
     $battery_level = $existing ? $existing->battery_level : null;
     $battery_charging = $existing ? $existing->battery_charging : null;
-    $memory_info = $existing ? $existing->memory_info : null;
+    $memory_info = (is_object($existing) && property_exists($existing, 'memory_info')) ? $existing->memory_info : null;
     $cpu_cores = $existing ? $existing->cpu_cores : null;
-    $touchscreen_detected = $existing ? $existing->touchscreen_detected : null;
+    $touchscreen_detected = (is_object($existing) && property_exists($existing, 'touchscreen_detected')) ? $existing->touchscreen_detected : null;
 
     if ($existing) {
         // Update existing record
