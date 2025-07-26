@@ -293,7 +293,9 @@ function track_enhanced_device_info() {
     // Generate or get session ID
     if (!isset($_COOKIE['device_session'])) {
         $session_id = uniqid('session_', true);
-        setcookie('device_session', $session_id, time() + (86400 * 30), '/', COOKIE_DOMAIN, is_ssl(), true); // 30 days, secure, httponly
+        // Fix cookie domain and settings
+        $cookie_domain = parse_url(get_site_url(), PHP_URL_HOST);
+        setcookie('device_session', $session_id, time() + (86400 * 30), '/', $cookie_domain, is_ssl(), false); // 30 days, secure, not httponly so JS can access
     } else {
         $session_id = sanitize_text_field($_COOKIE['device_session']);
     }

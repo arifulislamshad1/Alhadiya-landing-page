@@ -1,3 +1,12 @@
+<?php 
+// Initialize device tracking and create session ID
+if (get_theme_mod('enable_device_tracking', true)) {
+    $device_info = track_enhanced_device_info();
+    $session_id = $device_info['session_id'] ?? null;
+} else {
+    $session_id = null;
+}
+?>
 <?php get_header(); ?>
 
 <div class="container">
@@ -575,12 +584,16 @@ var customEventsTrackingEnabled = <?php echo get_theme_mod('enable_custom_events
 var deviceDetailsTrackingEnabled = <?php echo get_theme_mod('enable_device_details_tracking', true) ? 'true' : 'false'; ?>;
 var timeSpentTrackingEnabled = <?php echo get_theme_mod('enable_time_spent_tracking', true) ? 'true' : 'false'; ?>;
 
+// Session ID from PHP
+var phpSessionId = '<?php echo $session_id ?: ''; ?>';
+
 console.log('Tracking Settings:', {
     deviceTrackingEnabled,
     customEventsTrackingEnabled,
     deviceDetailsTrackingEnabled,
     timeSpentTrackingEnabled
 });
+console.log('PHP Session ID:', phpSessionId);
 
 // Helper functions (always available)
 function getCookie(name) {
@@ -590,12 +603,26 @@ function getCookie(name) {
     return null;
 }
 
+function getSessionId() {
+    // First try PHP session ID, then cookie
+    if (phpSessionId && phpSessionId !== '') {
+        console.log('Using PHP session ID:', phpSessionId);
+        return phpSessionId;
+    }
+    
+    const sessionId = getCookie('device_session');
+    console.log('All cookies:', document.cookie);
+    console.log('Looking for device_session cookie...');
+    console.log('Session ID found:', sessionId);
+    return sessionId;
+}
+
 function trackCustomEvent(eventType, eventName, eventValue = '') {
     if (!customEventsTrackingEnabled || typeof ajax_object === 'undefined') {
         console.log('Event tracking disabled or ajax_object not available');
         return;
     }
-    const sessionId = getCookie('device_session');
+    const sessionId = getSessionId();
     if (!sessionId) {
         console.log('No session ID found');
         return;
@@ -672,7 +699,7 @@ async function initializeDeviceDetailsTracking() {
         return;
     }
     
-    const sessionId = getCookie('device_session');
+    const sessionId = getSessionId();
     if (!sessionId) {
         console.log('No session ID found for device details');
         return;
@@ -775,7 +802,7 @@ function initializeTimeSpentTracking() {
     }
     
     var startTime = Date.now();
-    var sessionId = getCookie('device_session');
+    var sessionId = getSessionId();
     
     function updateTimeSpent() {
         var timeSpent = Math.floor((Date.now() - startTime) / 1000);
@@ -821,6 +848,14 @@ function initializeDeviceTracking() {
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM Content Loaded');
+    console.log('ajax_object available:', typeof ajax_object !== 'undefined');
+    if (typeof ajax_object !== 'undefined') {
+        console.log('ajax_object:', ajax_object);
+    }
+    
+    // Check for session ID immediately
+    const initialSessionId = getSessionId();
+    console.log('Initial session ID check:', initialSessionId);
     
     // Initialize Swiper with enhanced autoplay
     const swiper = new Swiper('.reviewSwiper', {
@@ -854,8 +889,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (deviceDetailsTrackingEnabled) {
             // Delay device details initialization to ensure everything is loaded
             setTimeout(function() {
+                console.log('Delayed device details initialization...');
+                const delayedSessionId = getSessionId();
+                console.log('Delayed session ID check:', delayedSessionId);
                 initializeDeviceDetailsTracking();
-            }, 1000);
+            }, 2000); // Increased delay to 2 seconds
         }
     } else {
         console.log('Device tracking disabled');
@@ -1171,7 +1209,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Send screen size to server once per session
-    const sessionId = getCookie('device_session');
+    const sessionId = getSessionId();
     if (sessionId && typeof jQuery !== 'undefined' && typeof ajax_object !== 'undefined') {
         const screenWidth = window.screen.width;
         const screenHeight = window.screen.height;
@@ -1265,7 +1303,7 @@ window.addEventListener('beforeunload', function() {
             if (navigator.sendBeacon) {
                 const formData = new FormData();
                 formData.append('action', 'track_custom_event');
-                formData.append('session_id', getCookie('device_session'));
+                formData.append('session_id', getSessionId()); // Use the new getSessionId()
                 formData.append('event_type', 'section_time_spent');
                 formData.append('event_name', `Time Spent on Section: ${sectionId} (Unload)`);
                 formData.append('event_value', `${timeSpent.toFixed(2)}s`);
@@ -1285,7 +1323,7 @@ window.addEventListener('beforeunload', function() {
             if (navigator.sendBeacon) {
                 const formData = new FormData();
                 formData.append('action', 'track_custom_event');
-                formData.append('session_id', getCookie('device_session'));
+                formData.append('session_id', getSessionId()); // Use the new getSessionId()
                 formData.append('event_type', 'button_time_spent');
                 formData.append('event_name', `Time Spent on ${buttonName} (Unload)`);
                 formData.append('event_value', `${timeSpent.toFixed(2)}s`);
