@@ -1390,6 +1390,24 @@ if (invoiceModal) {
     });
 }
 
+// Swiper Loop Warning Fix
+document.addEventListener('DOMContentLoaded', function() {
+    const swiperContainers = document.querySelectorAll('.swiper-container');
+    swiperContainers.forEach(function(container) {
+        const slidesCount = container.querySelectorAll('.swiper-slide').length;
+        const slidesPerView = 3; // আপনার সেটিং অনুযায়ী
+        const loopMode = slidesCount > slidesPerView ? true : false;
+        
+        if (window.Swiper) {
+            new Swiper(container, {
+                slidesPerView: slidesPerView,
+                loop: loopMode,
+                // ...other options
+            });
+        }
+    });
+});
+
 // Ensure time spent for visible sections and buttons is sent on page unload
 window.addEventListener('beforeunload', function() {
     // Track time spent for any currently visible sections
@@ -1412,10 +1430,6 @@ window.addEventListener('beforeunload', function() {
             }
         }
     }
-
-    // Track time spent for any currently visible floating buttons
-    // The floatingButtonTimers object was not defined in the original file,
-    // so this section will be removed as per the edit hint.
 });
 </script>
 
